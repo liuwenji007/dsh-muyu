@@ -8,7 +8,7 @@ Busy wait uses the current session's `running` bit from `useSessions` (the same 
 
 Replace files in `src/client/assets/` and point [`poses.ts`](src/client/assets/poses.ts) at the new files; tsdown inlines `png`/`webp`/`gif`/`svg` imports as `data:` URLs inside the client bundle. `prefers-reduced-motion` still swaps sprites and skips the plaque hop and the floating +1.
 
-`/client` exports are `apply` / `inject`, `Config`, and `createMuyuStore`.
+`/client` exports are `apply` / `inject`, `Prefs`, and `createMuyuStore`.
 
 This package is a **bundle** (`dsh.bundle` plus `dsh.client`). Installing it into a Web profile appends it to `dsh.profile.bundles`. Suggested GitHub topics: `dsh`, `dsh-plugin`, `deepseek-harness`.
 
@@ -54,18 +54,17 @@ Harness is still pre-release: most `@deepseek-ai/dsh-*` peers are not on npm. Th
 
 ## Config
 
-The browser half applies schema defaults in `apply`. Host yaml `config` does not reach the browser fiber; change defaults in [`src/config.ts`](src/config.ts) and rebuild.
+Open **Settings → Wooden fish**. Prefs persist in the same browser store as merit (`localStorage` key `dsh.muyu.merit`). Host yaml `config` does not reach the browser fiber and is not the way to change feel.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `true` | When false, the overlay does not register |
+| `enabled` | `true` | When false, the overlay does not paint; the settings page stays |
+| `plaque` | `censer` | Merit plaque art: `censer` or `board` |
 | `autoDelayMs` | `1000` | Busy wait before the first auto-knock (ms) |
 | `autoIntervalMs` | `1000` | Auto-knock interval while busy (ms) |
-| `autoHitMs` | `280` | Auto-hit pose hold before idle (ms) |
 | `comboThreshold` | `5` | Manual knocks since idle that release into the big bump |
-| `bumpMs` / `bumpMaxMs` | `800` / `2400` | Small-bump hold and its ceiling (ms) |
-| `bumpBigMs` / `bumpBigMaxMs` | `800` / `2400` | Big-bump hold and its ceiling (ms) |
-| `plaque` | `censer` | Merit plaque art: `censer` or `board` |
+
+Bump hold, auto-hit pose length, and the stick-cursor hotspot are art constants in [`src/config.ts`](src/config.ts) (`ART_TUNABLES`). They stay matched to the shipped sprites; change them there and rebuild.
 
 ## Model Experience
 
@@ -77,8 +76,8 @@ None; the package never assembles or sends provider requests.
 
 ## Known Limitations and Deferred Work
 
-- **Placeholder sprites** — the shipped files are labeled stand-ins; replacing them is an import-path change, not a slot change.
-- **Merit is browser-local** — the exclusive store keeps per-session counts in `localStorage` under `dsh.muyu.merit`. Reload and plugin-fiber remount rehydrate that map. A missing session id shows 0. Quota or private-mode storage failure disables persistence for this page only. Nothing is written to the session log.
+- **Swap art in `poses.ts`** — replace files in `src/client/assets/` and point [`poses.ts`](src/client/assets/poses.ts) at them; that is an import-path change, not a slot change.
+- **Merit is browser-local** — the exclusive store keeps per-session counts in `localStorage` under `dsh.muyu.merit`, capped at the 100 most recently awarded session ids (LRU on write). Deleted conversations are not removed when the Host session list changes. Reload and plugin-fiber remount rehydrate that map. A missing session id shows 0. Quota or private-mode storage failure disables persistence for this page only. Nothing is written to the session log.
 - **No dragging** — the sprite stays in the lower-right corner so it does not cover the Cordis panel.
 
 ## Development

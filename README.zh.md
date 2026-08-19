@@ -8,7 +8,7 @@ DeepSeek Harness Web 客户端的电子木鱼浮层：向 `shell.overlay` 列表
 
 把 `src/client/assets/` 里的文件换成新图，并让 [`poses.ts`](src/client/assets/poses.ts) 指向它们即可；tsdown 会把 `png`/`webp`/`gif`/`svg` 的 import 内联成 client bundle 里的 `data:` URL。`prefers-reduced-motion` 仍换图，只是跳过牌子跳动和上飘 +1。
 
-`/client` 导出为 `apply` / `inject`、`Config` 和 `createMuyuStore`。
+`/client` 导出为 `apply` / `inject`、`Prefs` 和 `createMuyuStore`。
 
 本包是 **bundle 插件**（`dsh.bundle` 加 `dsh.client`），装进 Web profile 后会进入 `dsh.profile.bundles`。GitHub topic 建议：`dsh`、`dsh-plugin`、`deepseek-harness`。
 
@@ -54,18 +54,17 @@ Harness 仍是 pre-release，多数 `@deepseek-ai/dsh-*` peer 还不在 npm 上�
 
 ## 配置
 
-浏览器半在 `apply` 里套用 schema 默认值。宿主 yaml 里的 `config` 到不了浏览器 fiber；改手感请改 [`src/config.ts`](src/config.ts) 的 default 后重新构建。
+打开 **设置 → 木鱼**。偏好和功德写在同一个浏览器 store 里（`localStorage` 键 `dsh.muyu.merit`）。宿主 yaml 的 `config` 到不了浏览器 fiber，不是改手感的途径。
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `enabled` | `true` | 为 `false` 时不注册浮层 |
+| `enabled` | `true` | 为 `false` 时不画出浮层；设置页仍在 |
+| `plaque` | `censer` | 功德牌：`censer` 香炉 / `board` 木牌 |
 | `autoDelayMs` | `1000` | 忙碌后第一次自动敲的等待（毫秒） |
 | `autoIntervalMs` | `1000` | 自动敲间隔（毫秒） |
-| `autoHitMs` | `280` | 自动敲姿态停留（毫秒） |
 | `comboThreshold` | `5` | 达到后松手播大包 |
-| `bumpMs` / `bumpMaxMs` | `800` / `2400` | 小包停留及其上限（毫秒） |
-| `bumpBigMs` / `bumpBigMaxMs` | `800` / `2400` | 大包停留及其上限（毫秒） |
-| `plaque` | `censer` | 功德牌：`censer` 香炉 / `board` 木牌 |
+
+起包停留、自动敲姿态时长、木棍光标热点是 [`src/config.ts`](src/config.ts) 里的美术常量 `ART_TUNABLES`，跟随包装的图对齐；要改请改那里再重新构建。
 
 ## 模型体验
 
@@ -77,8 +76,8 @@ Harness 仍是 pre-release，多数 `@deepseek-ai/dsh-*` peer 还不在 npm 上�
 
 ## 已知限制与暂缓事项
 
-- **占位图** — 随包装的是带标签的替身；替换它们只需改 import 路径，不必改 slot。
-- **功德只存在于浏览器本地** — 独占 store 把按会话记账的计数写进 `localStorage` 的 `dsh.muyu.merit`。重新加载和插件 fiber remount 会从该映射恢复。没有当前会话时显示 0。配额或隐私模式导致的存储失败只让本页不再持久化。不写 session log。
+- **换图改 `poses.ts`** — 把 `src/client/assets/` 里的文件换成新图，并让 [`poses.ts`](src/client/assets/poses.ts) 指向它们即可；这是 import 路径变更，不必改 slot。
+- **功德只存在于浏览器本地** — 独占 store 把按会话记账的计数写进 `localStorage` 的 `dsh.muyu.merit`，写入时按 LRU 最多保留 100 个最近记过功德的 session。Host 会话列表删掉对话时，这边不会跟着清。重新加载和插件 fiber remount 会从该映射恢复。没有当前会话时显示 0。配额或隐私模式导致的存储失败只让本页不再持久化。不写 session log。
 - **不能拖拽** — 角色图固定在右下角，避免挡住 Cordis 面板。
 
 ## 开发

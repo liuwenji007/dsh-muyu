@@ -1,11 +1,12 @@
 /**
  * Wooden-fish overlay: character sprite, head hot zone, and session merit plaque.
  */
-import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import clsx from 'clsx'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { ResolvedMuyuConfig } from '../config.ts'
+import { resolveMuyuConfig } from '../config.ts'
+import { PLAQUE_SRC } from './assets/poses.ts'
 import { initialMuyuState, stepMuyu, type MuyuEvent, type MuyuPose } from './muyu-machine.ts'
 import type { createMuyuStore } from './stores.ts'
 import type { MuyuKey } from './locales.ts'
@@ -34,16 +35,12 @@ export function formatPlaqueMerit(merit: number): string {
   return merit < PLAQUE_K_AT ? String(merit) : `${Math.floor(merit / 1_000)}k`
 }
 
-/** Injected tunables and sprite URLs closed over from `apply`. */
+/** Injected sprite URLs closed over from `apply`. */
 export interface MuyuInjected {
-  /** Resolved overlay config. */
-  tunables: ResolvedMuyuConfig
   /** Character pose image URLs. */
   poseSrc: Readonly<Record<MuyuPose, string>>
   /** Stick-cursor image URL. */
   stickSrc: string
-  /** Merit-plaque image URL (wooden board or incense censer). */
-  plaqueSrc: string
   /** Floating +1 image URL. */
   addSrc: string
 }
@@ -57,17 +54,15 @@ export type MuyuWidgetProps =
 
 /**
  * Frame-corner wooden fish.
- * @param props - runtime, store, locale, tunables, and sprite URLs.
+ * @param props - runtime, store, locale, and sprite URLs.
  */
 export function MuyuWidget({
   useSessions,
   useStore,
   actions,
   t,
-  tunables,
   poseSrc,
   stickSrc,
-  plaqueSrc,
   addSrc,
 }: MuyuWidgetProps) {
   const sessionId = useSessions(s => s.current)
@@ -75,10 +70,17 @@ export function MuyuWidget({
     const id = s.current
     return id !== undefined && s.byId[id]?.running === true
   })
-  const merit = useStore(s => (sessionId === undefined ? 0 : (s.bySession[sessionId] ?? 0)))
+  const prefs = useStore(s => s.prefs)
+  const tunables = useMemo(() => resolveMuyuConfig(prefs ?? {}), [prefs])
+  const plaqueSrc = PLAQUE_SRC[tunables.plaque]
+  const merit = useStore(s => {
+    const map = s.bySession ?? {}
+    return sessionId === undefined ? 0 : (map[sessionId] ?? 0)
+  })
   const [machine, setMachine] = useState(initialMuyuState)
   const [plaquePop, setPlaquePop] = useState(false)
   const [floats, setFloats] = useState<number[]>([])
+  const [stickAt, setStickAt] = useState<{ x: number; y: number } | null>(null)
   const floatSeq = useRef(0)
   const floatTimers = useRef(new Set<number>())
   const popTimer = useRef<number | undefined>(undefined)
@@ -128,19 +130,20 @@ export function MuyuWidget({
   }, [])
 
   useEffect(() => {
-    const next = stepMuyu(initialMuyuState(), { type: 'sessionChange' }, tunables).state
+    const next = stepMuyu(initialMuyuState(), { type: 'sessionChange' }, tunablesRef.current).state
     machineRef.current = next
     setMachine(next)
-  }, [sessionId, tunables])
+  }, [sessionId])
 
   useEffect(() => {
     const id = window.setInterval(() => {
+      if (!tunablesRef.current.enabled) return
       applyEvent({ type: 'tick', now: Date.now(), running: runningRef.current })
     }, TICK_MS)
     return () => { window.clearInterval(id) }
   }, [applyEvent])
 
-  const [stickAt, setStickAt] = useState<{ x: number; y: number } | null>(null)
+  if (!tunables.enabled) return null
 
   const followStick = (event: PointerEvent<HTMLButtonElement>) => {
     setStickAt({

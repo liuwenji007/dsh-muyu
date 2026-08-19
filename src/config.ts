@@ -1,59 +1,67 @@
 /**
- * Overlay feel tunables. The browser fiber reads this schema; Cordis applies
- * `.default()` before `apply`.
+ * Overlay tunables: user prefs (settings page + store) and art constants
+ * (sprite timing / hotspot). The pose machine still consumes the merged
+ * {@link ResolvedMuyuConfig}.
  */
 import z from 'schemastery'
 
-/** Plugin config before schema defaults. */
-export interface MuyuConfig {
-  /** When false, the overlay does not register. */
+/** User-facing prefs before schema defaults. */
+export interface MuyuPrefs {
+  /** When false, the overlay widget does not paint. The settings page stays. */
   enabled?: boolean
   /** Busy wait before the first auto-knock, in milliseconds. */
   autoDelayMs?: number
   /** Auto-knock spacing while still busy, in milliseconds. */
   autoIntervalMs?: number
-  /** Auto-hit pose hold before returning to idle, in milliseconds. */
-  autoHitMs?: number
   /** Manual knocks since idle that release into the big bump. */
   comboThreshold?: number
-  /** Small-bump hold before returning to idle, in milliseconds. */
-  bumpMs?: number
-  /** Ceiling on small-bump hold, including combo extra, in milliseconds. */
-  bumpMaxMs?: number
-  /** Big-bump hold before stepping down to the small bump, in milliseconds. */
-  bumpBigMs?: number
-  /** Ceiling on big-bump hold, including combo extra, in milliseconds. */
-  bumpBigMaxMs?: number
-  /** Stick-cursor hotspot X in CSS pixels from the image's left. */
-  stickHotspotX?: number
-  /** Stick-cursor hotspot Y in CSS pixels from the image's top. */
-  stickHotspotY?: number
   /** Merit plaque art: wooden board or incense censer. */
   plaque?: 'censer' | 'board'
 }
 
-/** Plugin config after schema defaults. */
-export type ResolvedMuyuConfig = {
+/** User-facing prefs after schema defaults. */
+export type ResolvedMuyuPrefs = {
   readonly enabled: boolean
   readonly autoDelayMs: number
   readonly autoIntervalMs: number
-  readonly autoHitMs: number
   readonly comboThreshold: number
+  readonly plaque: 'board' | 'censer'
+}
+
+/** Art-locked timings and cursor hotspot, keyed to the shipped sprites. */
+export type MuyuArtTunables = {
+  readonly autoHitMs: number
   readonly bumpMs: number
   readonly bumpMaxMs: number
   readonly bumpBigMs: number
   readonly bumpBigMaxMs: number
   readonly stickHotspotX: number
   readonly stickHotspotY: number
-  readonly plaque: 'board' | 'censer'
 }
 
-/** Cordis plugin config schema. */
-export const Config: z<MuyuConfig> = z.object({
+/** Full overlay tunables before defaults (prefs + optional art overrides). */
+export interface MuyuConfig extends MuyuPrefs, Partial<MuyuArtTunables> {}
+
+/** Full overlay tunables after defaults. */
+export type ResolvedMuyuConfig = ResolvedMuyuPrefs & MuyuArtTunables
+
+/** Sprite timing and stick hotspot. Not shown on the settings page. */
+export const ART_TUNABLES: MuyuArtTunables = {
+  autoHitMs: 280,
+  bumpMs: 800,
+  bumpMaxMs: 2400,
+  bumpBigMs: 800,
+  bumpBigMaxMs: 2400,
+  stickHotspotX: 8,
+  stickHotspotY: 28,
+}
+
+/** Settings-page / store schema for the five user prefs. */
+export const Prefs: z<MuyuPrefs> = z.object({
   enabled: z
     .boolean()
     .default(true)
-    .description('Mount the wooden-fish overlay'),
+    .description('Show the wooden-fish overlay'),
   autoDelayMs: z
     .number()
     .step(1)
@@ -66,54 +74,12 @@ export const Config: z<MuyuConfig> = z.object({
     .min(1)
     .default(1000)
     .description('Auto-knock interval while busy (ms)'),
-  autoHitMs: z
-    .number()
-    .step(1)
-    .min(1)
-    .default(280)
-    .description('Auto-hit pose hold before idle (ms)'),
   comboThreshold: z
     .number()
     .step(1)
     .min(1)
     .default(5)
     .description('Manual knocks since idle that release into the big bump'),
-  bumpMs: z
-    .number()
-    .step(1)
-    .min(1)
-    .default(800)
-    .description('Small-bump hold before idle (ms)'),
-  bumpMaxMs: z
-    .number()
-    .step(1)
-    .min(1)
-    .default(2400)
-    .description('Small-bump hold ceiling, including combo extra (ms)'),
-  bumpBigMs: z
-    .number()
-    .step(1)
-    .min(1)
-    .default(800)
-    .description('Big-bump hold before the small bump (ms)'),
-  bumpBigMaxMs: z
-    .number()
-    .step(1)
-    .min(1)
-    .default(2400)
-    .description('Big-bump hold ceiling, including combo extra (ms)'),
-  stickHotspotX: z
-    .number()
-    .step(1)
-    .min(0)
-    .default(8)
-    .description('Stick cursor hotspot X (px)'),
-  stickHotspotY: z
-    .number()
-    .step(1)
-    .min(0)
-    .default(28)
-    .description('Stick cursor hotspot Y (px)'),
   plaque: z
     .union(['board', 'censer'])
     .default('censer')
@@ -121,10 +87,41 @@ export const Config: z<MuyuConfig> = z.object({
 })
 
 /**
- * Apply schema defaults without going through a Cordis fiber.
- * @param input - partial config, usually `{}` in tests.
- * @returns every tunable filled.
+ * Host plugin config. User prefs live in the browser store, not Host yaml.
+ * An empty schema keeps Cordis from advertising fields the browser never reads.
+ */
+export const Config = z.object({})
+
+/**
+ * Fill user-pref defaults.
+ * @param input - partial prefs, usually `{}` or a store patch.
+ * @returns every user pref filled.
+ */
+export function resolveMuyuPrefs(input: MuyuPrefs = {}): ResolvedMuyuPrefs {
+  return Prefs(input) as ResolvedMuyuPrefs
+}
+
+/**
+ * Merge user prefs with art constants. Tests may override art timings.
+ * @param input - partial prefs and optional art overrides.
+ * @returns every overlay tunable filled.
  */
 export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
-  return Config(input) as ResolvedMuyuConfig
+  const prefs = resolveMuyuPrefs({
+    enabled: input.enabled,
+    autoDelayMs: input.autoDelayMs,
+    autoIntervalMs: input.autoIntervalMs,
+    comboThreshold: input.comboThreshold,
+    plaque: input.plaque,
+  })
+  return {
+    ...prefs,
+    autoHitMs: input.autoHitMs ?? ART_TUNABLES.autoHitMs,
+    bumpMs: input.bumpMs ?? ART_TUNABLES.bumpMs,
+    bumpMaxMs: input.bumpMaxMs ?? ART_TUNABLES.bumpMaxMs,
+    bumpBigMs: input.bumpBigMs ?? ART_TUNABLES.bumpBigMs,
+    bumpBigMaxMs: input.bumpBigMaxMs ?? ART_TUNABLES.bumpBigMaxMs,
+    stickHotspotX: input.stickHotspotX ?? ART_TUNABLES.stickHotspotX,
+    stickHotspotY: input.stickHotspotY ?? ART_TUNABLES.stickHotspotY,
+  }
 }
