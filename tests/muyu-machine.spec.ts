@@ -35,6 +35,7 @@ describe('resolveMuyuConfig', () => {
       stickHotspotX: 8,
       stickHotspotY: 28,
       plaque: 'censer',
+      artBaseUrl: '',
     })
   })
 

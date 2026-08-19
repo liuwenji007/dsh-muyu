@@ -8,14 +8,31 @@ import {
 } from '../src/client/merit-map.ts'
 
 describe('resolveMuyuPrefs', () => {
-  it('fills the five user-pref defaults', () => {
+  it('fills the user-pref defaults', () => {
     expect(resolveMuyuPrefs()).toEqual({
       enabled: true,
       autoDelayMs: 1000,
       autoIntervalMs: 1000,
       comboThreshold: 5,
       plaque: 'censer',
+      artBaseUrl: '',
     })
+  })
+})
+
+describe('resolveArtUrl', () => {
+  it('keeps the fallback when the base is blank', async () => {
+    const { resolveArtUrl } = await import('../src/client/art-url.ts')
+    expect(resolveArtUrl('', 'idle.png', 'builtin')).toBe('builtin')
+    expect(resolveArtUrl('  ', 'idle.png', 'builtin')).toBe('builtin')
+  })
+
+  it('joins a base URL with the asset basename', async () => {
+    const { resolveArtUrl } = await import('../src/client/art-url.ts')
+    expect(resolveArtUrl('https://cdn.example/muyu', 'idle.png', 'builtin'))
+      .toBe('https://cdn.example/muyu/idle.png')
+    expect(resolveArtUrl('https://cdn.example/muyu/', 'stick.png', 'builtin'))
+      .toBe('https://cdn.example/muyu/stick.png')
   })
 })
 

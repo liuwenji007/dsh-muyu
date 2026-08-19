@@ -6,8 +6,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { POSE_SRC, STICK_SRC, ADD_SRC } from './assets/poses.ts'
-import { MuyuWidget, type MuyuInjected } from './MuyuWidget.tsx'
+import { MuyuWidget } from './MuyuWidget.tsx'
 import { MuyuSettings } from './MuyuSettings.tsx'
 import { createMuyuStore } from './stores.ts'
 import { en, zh, type MuyuKey } from './locales.ts'
@@ -28,6 +27,27 @@ const NS = 'muyu'
 /** Required services: the slot registry and overlay copy. */
 export const inject = ['slots', 'locale']
 
+type LocaleFace = {
+  language?: string
+  locale?: string
+  t?: (ns: string, key: string) => string
+  text?: (ns: string, key: string) => string
+}
+
+/**
+ * Nav label that follows the live UI language.
+ * @param ctx - client context with an optional locale service.
+ */
+function sectionLabel(ctx: ClientContext): string {
+  const locale = ctx.get('locale') as LocaleFace | undefined
+  const translated = locale?.t?.(NS, 'settings.nav') ?? locale?.text?.(NS, 'settings.nav')
+  if (typeof translated === 'string' && translated !== '' && translated !== 'settings.nav') {
+    return translated
+  }
+  const lang = locale?.language ?? locale?.locale ?? ''
+  return lang.toLowerCase().startsWith('en') ? en['settings.nav'] : zh['settings.nav']
+}
+
 /**
  * Client plugin body: register dictionaries, the overlay, and the settings page.
  * @param ctx - client root context.
@@ -44,11 +64,6 @@ export function apply(ctx: ClientContext): void {
     order: 50,
     locale: NS,
     store,
-    inject: (): MuyuInjected => ({
-      poseSrc: POSE_SRC,
-      stickSrc: STICK_SRC,
-      addSrc: ADD_SRC,
-    }),
   }, MuyuWidget))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
@@ -56,7 +71,7 @@ export function apply(ctx: ClientContext): void {
     id: 'muyu',
     order: 80,
     locale: NS,
-    label: 'settings.nav',
+    label: () => sectionLabel(ctx),
     store,
   }, MuyuSettings))
 }

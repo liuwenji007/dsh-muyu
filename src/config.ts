@@ -17,6 +17,11 @@ export interface MuyuPrefs {
   comboThreshold?: number
   /** Merit plaque art: wooden board or incense censer. */
   plaque?: 'censer' | 'board'
+  /**
+   * Optional URL/path prefix for custom sprites. Empty uses packaged art.
+   * Files under the prefix must match the built-in basenames (idle.png, …).
+   */
+  artBaseUrl?: string
 }
 
 /** User-facing prefs after schema defaults. */
@@ -26,6 +31,7 @@ export type ResolvedMuyuPrefs = {
   readonly autoIntervalMs: number
   readonly comboThreshold: number
   readonly plaque: 'board' | 'censer'
+  readonly artBaseUrl: string
 }
 
 /** Art-locked timings and cursor hotspot, keyed to the shipped sprites. */
@@ -84,6 +90,10 @@ export const Prefs: z<MuyuPrefs> = z.object({
     .union(['board', 'censer'])
     .default('censer')
     .description('Merit plaque art: wooden board or incense censer'),
+  artBaseUrl: z
+    .string()
+    .default('')
+    .description('Optional sprite base URL; empty keeps packaged art'),
 })
 
 /**
@@ -113,6 +123,7 @@ export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
     autoIntervalMs: input.autoIntervalMs,
     comboThreshold: input.comboThreshold,
     plaque: input.plaque,
+    artBaseUrl: input.artBaseUrl,
   })
   return {
     ...prefs,

@@ -6,7 +6,9 @@ import clsx from 'clsx'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { resolveMuyuConfig } from '../config.ts'
-import { PLAQUE_SRC } from './assets/poses.ts'
+import {
+  resolveAddSrc, resolvePlaqueSrc, resolvePoseSrc, resolveStickSrc,
+} from './art-src.ts'
 import { initialMuyuState, stepMuyu, type MuyuEvent, type MuyuPose } from './muyu-machine.ts'
 import type { createMuyuStore } from './stores.ts'
 import type { MuyuKey } from './locales.ts'
@@ -35,35 +37,21 @@ export function formatPlaqueMerit(merit: number): string {
   return merit < PLAQUE_K_AT ? String(merit) : `${Math.floor(merit / 1_000)}k`
 }
 
-/** Injected sprite URLs closed over from `apply`. */
-export interface MuyuInjected {
-  /** Character pose image URLs. */
-  poseSrc: Readonly<Record<MuyuPose, string>>
-  /** Stick-cursor image URL. */
-  stickSrc: string
-  /** Floating +1 image URL. */
-  addSrc: string
-}
-
 /** Composed overlay props. */
 export type MuyuWidgetProps =
   & PropsRuntime<'shell.overlay'>
   & PropsStore<ReturnType<typeof createMuyuStore>>
   & PropsLocale<'muyu'>
-  & MuyuInjected
 
 /**
  * Frame-corner wooden fish.
- * @param props - runtime, store, locale, and sprite URLs.
+ * @param props - runtime, store, and locale.
  */
 export function MuyuWidget({
   useSessions,
   useStore,
   actions,
   t,
-  poseSrc,
-  stickSrc,
-  addSrc,
 }: MuyuWidgetProps) {
   const sessionId = useSessions(s => s.current)
   const running = useSessions((s) => {
@@ -72,7 +60,13 @@ export function MuyuWidget({
   })
   const prefs = useStore(s => s.prefs)
   const tunables = useMemo(() => resolveMuyuConfig(prefs ?? {}), [prefs])
-  const plaqueSrc = PLAQUE_SRC[tunables.plaque]
+  const poseSrc = useMemo(() => resolvePoseSrc(tunables.artBaseUrl), [tunables.artBaseUrl])
+  const stickSrc = useMemo(() => resolveStickSrc(tunables.artBaseUrl), [tunables.artBaseUrl])
+  const addSrc = useMemo(() => resolveAddSrc(tunables.artBaseUrl), [tunables.artBaseUrl])
+  const plaqueSrc = useMemo(
+    () => resolvePlaqueSrc(tunables.artBaseUrl, tunables.plaque),
+    [tunables.artBaseUrl, tunables.plaque],
+  )
   const merit = useStore(s => {
     const map = s.bySession ?? {}
     return sessionId === undefined ? 0 : (map[sessionId] ?? 0)

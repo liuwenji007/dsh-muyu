@@ -18,7 +18,7 @@ Harness 还是 preview 版本，最近算力不够，感觉api也有点降速，
 - 计数有香炉和木牌两种，默认香炉；9999 以内显示原数，再大显示 `Nk`。
 - 系统开了「减少动态效果」时会跳过跳动和飘 +1。
 
-手感在 **设置 → 木鱼** 里改（开关、香炉/木牌、自动敲快慢、起包连击数）。
+手感与图源在 **设置 → 木鱼** 里改（开关、香炉/木牌、自动敲快慢、起包连击数、自定义图源前缀）。
 
 ## 安装
 
@@ -80,14 +80,17 @@ dsh --profile web
 | 忙碌后第一次自动敲 | 1000 ms | |
 | 自动敲间隔 | 1000 ms | |
 | 大包连击阈值 | 5 | 达到后松手先大包再小包 |
+| 自定义图源前缀 | （空） | 填 CDN/静态目录 URL，留空用内置图 |
 
-起包停留、自动敲姿势时长、木棍光标热点跟包装的图绑在一起，改 [`src/config.ts`](src/config.ts) 里的 `ART_TUNABLES` 后重新 `pnpm run build`。
+图源目录里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。改完即时生效，不用重新安装插件。
+
+起包停留、自动敲姿势时长、木棍光标热点跟默认图绑在一起，改 [`src/config.ts`](src/config.ts) 里的 `ART_TUNABLES` 后重新 `pnpm run build`。
 
 ## 注意
 
 - 功德记在本机 `localStorage`（`dsh.muyu.merit`），最多 100 个最近敲过的会话；删掉的对话不会跟着清。隐私模式或配额满了，只是本页不再保存。
 - 不能拖拽，以免挡住侧栏。
-- 换图：替换 `src/client/assets/` 里的文件，改 [`poses.ts`](src/client/assets/poses.ts) 的 import，再 build。
+- 也可以直接改仓库里的 `src/client/assets/` 再 build，适合做成新默认皮肤发布。
 
 ## 改这个仓库
 

@@ -18,7 +18,7 @@ Wooden-fish overlay in the lower-right of the Web client. Knock the head for mer
 - Plaque is censer or board (default censer). Exact digits through 9999, then `Nk`.
 - `prefers-reduced-motion` skips the hop and the floating +1.
 
-Tune feel in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold).
+Tune feel and art in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold, custom art base URL).
 
 ## Install
 
@@ -80,14 +80,17 @@ dsh --profile web
 | First auto-knock after busy | 1000 ms | |
 | Auto-knock interval | 1000 ms | |
 | Big-bump combo | 5 | Release at or above this plays big bump, then small |
+| Custom art base URL | (empty) | CDN/static folder URL; blank keeps packaged sprites |
 
-Bump hold, auto-hit pose length, and the stick hotspot stay matched to the shipped art. Edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`.
+Files under that prefix: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Changes apply immediately — no reinstall.
+
+Bump hold, auto-hit pose length, and the stick hotspot stay matched to the default art. Edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`.
 
 ## Notes
 
 - Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page.
 - No dragging, so it does not cover the side panel.
-- Swap art: replace files in `src/client/assets/`, retarget [`poses.ts`](src/client/assets/poses.ts), rebuild.
+- You can also replace files under `src/client/assets/` and rebuild to ship a new default skin.
 
 ## This repo
 
