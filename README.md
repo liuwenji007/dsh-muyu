@@ -84,6 +84,8 @@ dsh --profile web
 
 图源目录里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。改完即时生效，不用重新安装插件。
 
+在 **设置 → 木鱼 → 导出官方图包** 可下载同名 zip，改图后上传到任意静态托管，把目录 URL 填回「自定义图源前缀」即可分享二创皮肤。
+
 起包停留、自动敲姿势时长、木棍光标热点跟默认图绑在一起，改 [`src/config.ts`](src/config.ts) 里的 `ART_TUNABLES` 后重新 `pnpm run build`。
 
 ## 注意

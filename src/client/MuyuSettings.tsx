@@ -2,8 +2,10 @@
  * Settings section: feel prefs + optional custom art base URL.
  * Writes the exclusive store; does not touch Host yaml or settingsScope.
  */
+import { useState } from 'react'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
 import type { PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
+import { downloadBuiltinArtPack } from './art-pack.ts'
 import type { createMuyuStore } from './stores.ts'
 import css from './MuyuSettings.module.css'
 
@@ -18,6 +20,7 @@ export type MuyuSettingsProps =
  */
 export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
   const prefs = useStore(s => s.prefs ?? resolveMuyuPrefs())
+  const [exportStatus, setExportStatus] = useState<'idle' | 'done' | 'fail'>('idle')
 
   const patch = (next: MuyuPrefs) => {
     try {
@@ -34,6 +37,15 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     const n = Number(event.currentTarget.value)
     if (!Number.isFinite(n)) return
     patch({ [key]: n })
+  }
+
+  const onExport = () => {
+    try {
+      downloadBuiltinArtPack()
+      setExportStatus('done')
+    } catch {
+      setExportStatus('fail')
+    }
   }
 
   return (
@@ -128,6 +140,16 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
           />
         </label>
         <p className={css.hint}>{t('settings.artBaseUrl.hint')}</p>
+        <button className={css.button} type="button" onClick={onExport}>
+          {t('settings.artExport')}
+        </button>
+        <p className={css.hint}>{t('settings.artExport.hint')}</p>
+        {exportStatus === 'done' && (
+          <p className={css.status}>{t('settings.artExport.done')}</p>
+        )}
+        {exportStatus === 'fail' && (
+          <p className={`${css.status} ${css.statusError}`}>{t('settings.artExport.fail')}</p>
+        )}
       </section>
     </form>
   )

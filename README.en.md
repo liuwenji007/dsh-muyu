@@ -84,6 +84,8 @@ dsh --profile web
 
 Files under that prefix: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Changes apply immediately — no reinstall.
 
+**Settings → Wooden fish → Export official art pack** downloads a zip with those names. Remix, host the folder, paste its URL into the custom art base field to share a skin.
+
 Bump hold, auto-hit pose length, and the stick hotspot stay matched to the default art. Edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`.
 
 ## Notes

@@ -103,3 +103,38 @@
   height: 1rem;
   accent-color: var(--dsw-accent, #3b82f6);
 }
+
+.button {
+  align-self: flex-start;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--dsw-border-primary, color-mix(in srgb, currentColor 18%, transparent));
+  border-radius: 8px;
+  background: var(--dsw-bg-primary, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.button:hover {
+  border-color: var(--dsw-accent, #3b82f6);
+  background: color-mix(in srgb, var(--dsw-accent, #3b82f6) 10%, transparent);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.status {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--dsw-text-secondary, color-mix(in srgb, currentColor 70%, transparent));
+}
+
+.statusError {
+  color: var(--dsw-danger, #dc2626);
+}

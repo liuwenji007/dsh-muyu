@@ -25,6 +25,10 @@ export const zh = {
   'settings.artBaseUrl': '自定义图源前缀',
   'settings.artBaseUrl.hint': '填 CDN 或静态目录 URL，留空用内置图。目录里需有 idle.png、auto-hit.png、manual-hit.png、bump.png、bump-big.png、stick.png、board.png、censer.png、add.png。',
   'settings.artBaseUrl.placeholder': 'https://example.com/muyu/',
+  'settings.artExport': '导出官方图包',
+  'settings.artExport.hint': '下载含上述文件名的 zip，改图后上传到静态托管，再把目录 URL 填回上面即可分享二创皮肤。',
+  'settings.artExport.done': '已开始下载',
+  'settings.artExport.fail': '导出失败，请重试',
 } satisfies Record<string, string>
 
 /** The muyu namespace key union. */
@@ -55,4 +59,8 @@ export const en = {
   'settings.artBaseUrl': 'Custom art base URL',
   'settings.artBaseUrl.hint': 'CDN or static folder URL; leave blank for packaged sprites. Expected files: idle.png, auto-hit.png, manual-hit.png, bump.png, bump-big.png, stick.png, board.png, censer.png, add.png.',
   'settings.artBaseUrl.placeholder': 'https://example.com/muyu/',
+  'settings.artExport': 'Export official art pack',
+  'settings.artExport.hint': 'Downloads a zip with those filenames. Remix, host the folder, paste its URL above to share a skin.',
+  'settings.artExport.done': 'Download started',
+  'settings.artExport.fail': 'Export failed — try again',
 } satisfies Record<MuyuKey, string>
