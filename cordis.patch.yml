@@ -1,0 +1,8 @@
+# dsh-muyu: insert the wooden-fish overlay into the Web client roster.
+# If your web-app already ships an in-tree `ui-muyu` row, disable it in the
+# profile patch so two overlays do not mount:
+#   - id: ui-muyu
+#     disabled: true
+- insert:
+    - id: dsh-muyu
+      name: dsh-muyu

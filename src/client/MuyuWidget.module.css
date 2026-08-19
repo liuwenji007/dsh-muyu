@@ -1,0 +1,139 @@
+.root {
+  position: fixed;
+  right: 4px;
+  /* Clears the composer stack; 152px is the shared first-paint fallback. */
+  bottom: calc(var(--dsh-composer-height, 152px) + 16px);
+  z-index: 21;
+  display: flex;
+  align-items: flex-end;
+  /* gap: 8px; */
+  pointer-events: auto;
+}
+
+.stage {
+  position: relative;
+  line-height: 0;
+}
+
+.sprite {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(160px, 36vw);
+  max-height: min(160px, 36vh);
+  user-select: none;
+  pointer-events: none;
+}
+
+.hotzone {
+  position: absolute;
+  top: 0;
+  left: 10%;
+  width: 80%;
+  height: 55%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: none;
+}
+
+.stickCursor {
+  position: fixed;
+  width: auto;
+  height: auto;
+  max-width: 72px;
+  max-height: 72px;
+  margin: 0;
+  pointer-events: none;
+  user-select: none;
+  z-index: 22;
+}
+
+.plaque {
+  position: relative;
+  width: min(60px, 22vw);
+  pointer-events: none;
+  color: #1e3a56;
+  margin-bottom: 20px;
+  margin-left: -44px;
+}
+
+.plaqueBoard {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+}
+
+.plaqueCopy {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.plaque[data-plaque='board'] .plaqueCopy {
+  top: 28%;
+  left: 20%;
+  width: 60%;
+  height: 30%;
+}
+
+.plaque[data-plaque='censer'] {
+  width: min(72px, 22vw);
+  margin-bottom: 16px;
+  margin-left: -50px;
+}
+
+.plaque[data-plaque='censer'] .plaqueCopy {
+  top: 62%;
+  left: 26%;
+  width: 48%;
+  height: 14%;
+}
+
+.plaqueValue {
+  font-size: 12px;
+  line-height: 22px;
+  font-weight: 700;
+}
+
+.plaquePop .plaqueValue {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.meritFloat {
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  width: auto;
+  height: auto;
+  max-width: 36px;
+  max-height: 32px;
+  margin: 0;
+  pointer-events: none;
+  user-select: none;
+  animation: meritFloat 800ms ease-out forwards;
+}
+
+@keyframes meritFloat {
+  from {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-40px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plaquePop .plaqueValue {
+    transform: none;
+  }
+
+  .meritFloat {
+    animation: none;
+  }
+}
