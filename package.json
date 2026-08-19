@@ -1,9 +1,17 @@
 {
   "name": "dsh-muyu",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DeepSeek Harness Web overlay: knockable wooden-fish sprite and per-session merit plaque",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liuwenji007/dsh-muyu.git"
+  },
+  "homepage": "https://github.com/liuwenji007/dsh-muyu#readme",
+  "bugs": {
+    "url": "https://github.com/liuwenji007/dsh-muyu/issues"
+  },
   "keywords": [
     "dsh",
     "dsh-plugin",
