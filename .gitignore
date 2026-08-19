@@ -3,3 +3,5 @@ lib/
 *.tgz
 .DS_Store
 *.log
+.pnpm-store/
+.history/

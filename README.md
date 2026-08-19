@@ -2,85 +2,92 @@
 
 English | [中文](README.zh.md)
 
-Wooden-fish overlay for the DeepSeek Harness Web client: one `shell.overlay` list entry that pins a knockable whale sprite in the lower-right corner, with a stick cursor on the head hot zone and a per-session merit plaque. The character is a single sprite layer; the stick is never composited into the pose art. Knocks and merit stay in the browser store and never enter the session log.
+Harness is still preview. Capacity feels tight, the API sometimes crawls, and a loop can die mid-turn. Waiting those minutes gets under your skin — so here is a sulky little blue whale in the corner. Knock her once for a merit while you wait. Hope the compute farms catch up and the prices come down. When she is busy she knocks herself; AFK merit, goof off a little.
 
-Busy wait uses the current session's `running` bit from `useSessions` (the same `host/session-status` fact InputBar reads). After `autoDelayMs` the overlay auto-knocks once per `autoIntervalMs` until the session is idle: each auto-knock flashes `autoHit` for `autoHitMs` then returns to idle, and awards one merit. Auto-knocks do not raise combo or play bump. A pointer-down on the head awards one merit and one combo; release below `comboThreshold` plays the small bump, and a combo at or above the threshold plays big bump then small bump. Bump hold grows with the elapsed time of that manual combo, and each stage is capped at `bumpMaxMs` or `bumpBigMaxMs`. Recovery does not yield to auto-knock; a further press cancels recovery and keeps combo. Switching the current session resets pose and combo and shows that session's plaque (0 when unseen). The plaque prints the exact count through 9999 and `Nk` from 10000 up. `plaque` selects the wooden board or the incense censer (default censer). A knock that awards merit also floats `add.png` upward from the character.
+Wooden-fish overlay in the lower-right of the Web client. Knock the head for merit; while the model is thinking or streaming she knocks on her own. Merit stays in this browser — never the session log, never an extra request. Swap the art if you want.
 
-Replace files in `src/client/assets/` and point [`poses.ts`](src/client/assets/poses.ts) at the new files; tsdown inlines `png`/`webp`/`gif`/`svg` imports as `data:` URLs inside the client bundle. `prefers-reduced-motion` still swaps sprites and skips the plaque hop and the floating +1.
+![tap](docs/tap.gif) ![auto-tap](docs/auto-tap.gif)
 
-`/client` exports are `apply` / `inject`, `Prefs`, and `createMuyuStore`.
+## Play
 
-This package is a **bundle** (`dsh.bundle` plus `dsh.client`). Installing it into a Web profile appends it to `dsh.profile.bundles`. Suggested GitHub topics: `dsh`, `dsh-plugin`, `deepseek-harness`.
+- Click the head: +1 merit. Enough knocks in a row and she bumps.
+- While the current session is busy: auto-knocks also score (about 1 merit per second by default).
+- Switch session: the plaque shows that session's count (0 if unseen); pose resets.
+- Plaque is censer or board (default censer). Exact digits through 9999, then `Nk`.
+- `prefers-reduced-motion` skips the hop and the floating +1.
+
+Tune feel in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold).
 
 ## Install
 
+You need a working `dsh web` (DeepSeek Harness).
+
+### From npm (recommended)
+
 ```bash
-pnpm install   # runs prepare and emits lib/index.js plus lib/client.js
-dsh plugin --profile web add link:/abs/path/to/dsh-muyu
+dsh plugin --profile web add dsh-muyu
 dsh --profile web
 ```
 
-From GitHub after you publish the repo:
+Restart the Web client; the fish should appear in the lower-right. The published tarball already contains `lib/`, so `allowBuilds` is usually unnecessary.
+
+### From GitHub
 
 ```bash
-dsh plugin --profile web add github:<account>/dsh-muyu
+dsh plugin --profile web add github:liuwenji007/dsh-muyu
+dsh --profile web
 ```
 
-pnpm ≥10 refuses a git dependency's `prepare` until it is allowlisted. After the first `add` fails, copy the package key pnpm printed into that profile's `pnpm-workspace.yaml`:
+pnpm ≥10 may block a git dependency's `prepare`. After the first failure, add the package key pnpm printed to that profile's `pnpm-workspace.yaml`:
 
 ```yaml
 allowBuilds:
   dsh-muyu: true
 ```
 
-Then re-run `add`. Treat that allowance as permission to execute the package at install time; pin a commit (`github:<account>/dsh-muyu#<sha>`) so a later push cannot change what runs.
+Then `add` again. Prefer pinning a commit: `github:liuwenji007/dsh-muyu#<sha>`.
 
-From npm after `pnpm publish` (the tarball already contains `lib/`), users do not need `allowBuilds`:
+### Local link (development)
 
 ```bash
-dsh plugin --profile web add dsh-muyu
+cd /abs/path/to/dsh-muyu
+pnpm install
+dsh plugin --profile web add link:/abs/path/to/dsh-muyu
+dsh --profile web
 ```
 
-A `pnpm pack` tarball also works: `dsh plugin add ./dsh-muyu-0.1.0.tgz`.
+### Verify and remove
 
-If the Web bundle already ships an in-tree `ui-muyu` row, this package inserts a second overlay. Disable the in-tree row in the profile's `cordis.patch.yml`:
+- Working: the fish is in the corner, or `dsh --profile web --dump-config` lists this package. A page refresh is not enough — restart `dsh web` / `dsh --profile web`.
+- Remove: `dsh plugin --profile web remove dsh-muyu`, then restart.
 
-```yaml
-- id: ui-muyu
-  disabled: true
-```
+### Troubleshooting
 
-Harness is still pre-release: most `@deepseek-ai/dsh-*` peers are not on npm. Third-party installs use a source `dsh` checkout plus the `link:` form above until those packages are tagged.
+| If | Then |
+| --- | --- |
+| two overlays | The Web bundle may already ship `ui-muyu`. In the profile `cordis.patch.yml`, set `- id: ui-muyu` / `disabled: true` |
+| git install hits `allowBuilds` | See “From GitHub” above |
+| prefer a tarball | `pnpm pack`, then `dsh plugin add ./dsh-muyu-0.1.0.tgz` |
 
-## Config
-
-Open **Settings → Wooden fish**. Prefs persist in the same browser store as merit (`localStorage` key `dsh.muyu.merit`). Host yaml `config` does not reach the browser fiber and is not the way to change feel.
+## Settings
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `true` | When false, the overlay does not paint; the settings page stays |
-| `plaque` | `censer` | Merit plaque art: `censer` or `board` |
-| `autoDelayMs` | `1000` | Busy wait before the first auto-knock (ms) |
-| `autoIntervalMs` | `1000` | Auto-knock interval while busy (ms) |
-| `comboThreshold` | `5` | Manual knocks since idle that release into the big bump |
+| Show overlay | on | Off hides the sprite; the settings page stays |
+| Plaque | censer | Censer or wooden board |
+| First auto-knock after busy | 1000 ms | |
+| Auto-knock interval | 1000 ms | |
+| Big-bump combo | 5 | Release at or above this plays big bump, then small |
 
-Bump hold, auto-hit pose length, and the stick-cursor hotspot are art constants in [`src/config.ts`](src/config.ts) (`ART_TUNABLES`). They stay matched to the shipped sprites; change them there and rebuild.
+Bump hold, auto-hit pose length, and the stick hotspot stay matched to the shipped art. Edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`.
 
-## Model Experience
+## Notes
 
-None, as this overlay is a browser-only toy: knocks and merit never enter the session log, prompt, schema, stream, or tool result.
+- Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page.
+- No dragging, so it does not cover the side panel.
+- Swap art: replace files in `src/client/assets/`, retarget [`poses.ts`](src/client/assets/poses.ts), rebuild.
 
-#### KV Cache effect
-
-None; the package never assembles or sends provider requests.
-
-## Known Limitations and Deferred Work
-
-- **Swap art in `poses.ts`** — replace files in `src/client/assets/` and point [`poses.ts`](src/client/assets/poses.ts) at them; that is an import-path change, not a slot change.
-- **Merit is browser-local** — the exclusive store keeps per-session counts in `localStorage` under `dsh.muyu.merit`, capped at the 100 most recently awarded session ids (LRU on write). Deleted conversations are not removed when the Host session list changes. Reload and plugin-fiber remount rehydrate that map. A missing session id shows 0. Quota or private-mode storage failure disables persistence for this page only. Nothing is written to the session log.
-- **No dragging** — the sprite stays in the lower-right corner so it does not cover the Cordis panel.
-
-## Development
+## This repo
 
 ```bash
 pnpm install
@@ -88,14 +95,6 @@ pnpm test
 pnpm run build
 ```
 
-`prepare` emits `lib/` from `src/` without a sibling harness checkout. The browser half is a CJS factory for the Cordis module table (`window.__ModuleLoader__.load`); PNG and CSS Modules land inside `lib/client.js`.
-
-## Publishing
-
-1. Push this directory to a public GitHub repository and add topics `dsh`, `dsh-plugin`, `deepseek-harness`.
-2. After Harness has a tagged npm release, pin `peerDependencies` to that range and run `pnpm publish --access public`.
-3. Post the install command in Harness Discussions (Show and tell). There is no official plugin marketplace; discovery is npm search, GitHub topics, and community lists.
-
-## License
+GitHub topics: `dsh`, `dsh-plugin`, `deepseek-harness`. Publish with `pnpm publish --access public`. No official plugin marketplace — share in Discussions (Show and tell).
 
 MIT
