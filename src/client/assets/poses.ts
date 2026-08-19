@@ -6,7 +6,7 @@ import bump from './bump.png'
 import bumpBig from './bump-big.png'
 import stick from './stick.png'
 import board from './board.png'
-import censer from './board2.png'
+import censer from './censer.png'
 import add from './add.png'
 import type { MuyuPose } from '../muyu-machine.ts'
 

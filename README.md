@@ -1,82 +1,87 @@
 # dsh-muyu
 
-DeepSeek Harness **Web** 电子木鱼浮层：往 `shell.overlay` 挂一条目，右下角可敲的角色、木棍热区光标、按会话计的功德牌。敲击和功德只存在浏览器里，不进 session log。
+English | [中文](README.zh.md)
 
-GitHub topics 建议：`dsh` · `dsh-plugin` · `deepseek-harness`
+Wooden-fish overlay for the DeepSeek Harness Web client: one `shell.overlay` list entry that pins a knockable whale sprite in the lower-right corner, with a stick cursor on the head hot zone and a per-session merit plaque. The character is a single sprite layer; the stick is never composited into the pose art. Knocks and merit stay in the browser store and never enter the session log.
 
-## 它做什么
+Busy wait uses the current session's `running` bit from `useSessions` (the same `host/session-status` fact InputBar reads). After `autoDelayMs` the overlay auto-knocks once per `autoIntervalMs` until the session is idle: each auto-knock flashes `autoHit` for `autoHitMs` then returns to idle, and awards one merit. Auto-knocks do not raise combo or play bump. A pointer-down on the head awards one merit and one combo; release below `comboThreshold` plays the small bump, and a combo at or above the threshold plays big bump then small bump. Bump hold grows with the elapsed time of that manual combo, and each stage is capped at `bumpMaxMs` or `bumpBigMaxMs`. Recovery does not yield to auto-knock; a further press cancels recovery and keeps combo. Switching the current session resets pose and combo and shows that session's plaque (0 when unseen). The plaque prints the exact count through 9999 and `Nk` from 10000 up. `plaque` selects the wooden board or the incense censer (default censer). A knock that awards merit also floats `add.png` upward from the character.
 
-- 会话忙碌时自动轻敲，每次 +1 功德；自动敲不加连击、不起包。
-- 点角色头部手动敲：每次 +1 功德；连敲到阈值后先大包再小包。
-- 牌子默认香炉，到 10000 显示为 `Nk`。记功德时从角色上飘 `+1`。
-- 切换当前会话会清零姿态和连击，牌子显示该会话的数字。
+Replace files in `src/client/assets/` and point [`poses.ts`](src/client/assets/poses.ts) at the new files; tsdown inlines `png`/`webp`/`gif`/`svg` imports as `data:` URLs inside the client bundle. `prefers-reduced-motion` still swaps sprites and skips the plaque hop and the floating +1.
 
-## 安装
+`/client` exports are `apply` / `inject`, `Config`, and `createMuyuStore`.
 
-这是一个 **bundle 插件**（`dsh.bundle` + `dsh.client`），装进跑 Web 的 profile 后会自动进入 `dsh.profile.bundles`。
+This package is a **bundle** (`dsh.bundle` plus `dsh.client`). Installing it into a Web profile appends it to `dsh.profile.bundles`. Suggested GitHub topics: `dsh`, `dsh-plugin`, `deepseek-harness`.
 
-本地（当前仓库）：
+## Install
 
 ```bash
-pnpm install   # 会跑 prepare，打出 lib/index.js 和 lib/client.js
-dsh plugin --profile web add link:/Users/HandsomeLiu/Documents/deepseek-harness/dsh-muyu
+pnpm install   # runs prepare and emits lib/index.js plus lib/client.js
+dsh plugin --profile web add link:/abs/path/to/dsh-muyu
 dsh --profile web
 ```
 
-以后发到 GitHub：
+From GitHub after you publish the repo:
 
 ```bash
-dsh plugin --profile web add github:<你的账号>/dsh-muyu
+dsh plugin --profile web add github:<account>/dsh-muyu
 ```
 
-pnpm ≥10 会拦截 git 依赖的 `prepare`。第一次失败后，把 pnpm 打印的包名写进该 profile 的 `pnpm-workspace.yaml`：
+pnpm ≥10 refuses a git dependency's `prepare` until it is allowlisted. After the first `add` fails, copy the package key pnpm printed into that profile's `pnpm-workspace.yaml`:
 
 ```yaml
 allowBuilds:
   dsh-muyu: true
 ```
 
-再执行一次 `add`。只允许你信任源码的包；建议钉 commit：`github:<账号>/dsh-muyu#<sha>`。
+Then re-run `add`. Treat that allowance as permission to execute the package at install time; pin a commit (`github:<account>/dsh-muyu#<sha>`) so a later push cannot change what runs.
 
-发到 npm 之后（`pnpm publish` 会带上已构建的 `lib/`），普通用户不用 allowBuilds：
+From npm after `pnpm publish` (the tarball already contains `lib/`), users do not need `allowBuilds`:
 
 ```bash
 dsh plugin --profile web add dsh-muyu
 ```
 
-也可以 `pnpm pack` 出 `.tgz`，再 `dsh plugin add ./dsh-muyu-0.1.0.tgz`。
+A `pnpm pack` tarball also works: `dsh plugin add ./dsh-muyu-0.1.0.tgz`.
 
-若当前 Web 组合包已经内置了 `ui-muyu`，再装本插件会挂上**两只**木鱼。在 profile 的 `cordis.patch.yml` 里关掉内置行：
+If the Web bundle already ships an in-tree `ui-muyu` row, this package inserts a second overlay. Disable the in-tree row in the profile's `cordis.patch.yml`:
 
 ```yaml
 - id: ui-muyu
   disabled: true
 ```
 
-## 配置
+Harness is still pre-release: most `@deepseek-ai/dsh-*` peers are not on npm. Third-party installs use a source `dsh` checkout plus the `link:` form above until those packages are tagged.
 
-浏览器半会用 schema 默认值。宿主 yaml 里的 `config` **目前到不了浏览器**，改手感请改 `src/config.ts` 的 default 后重新 `pnpm run build`。
+## Config
 
-| 字段 | 默认 | 说明 |
+The browser half applies schema defaults in `apply`. Host yaml `config` does not reach the browser fiber; change defaults in [`src/config.ts`](src/config.ts) and rebuild.
+
+| Field | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `true` | 为 `false` 时不注册浮层 |
-| `autoDelayMs` | `1000` | 忙碌后第一次自动敲的等待 |
-| `autoIntervalMs` | `1000` | 自动敲间隔 |
-| `autoHitMs` | `280` | 自动敲姿态停留 |
-| `comboThreshold` | `5` | 达到后松手播大包 |
-| `bumpMs` / `bumpMaxMs` | `800` / `2400` | 小包停留及其上限 |
-| `bumpBigMs` / `bumpBigMaxMs` | `800` / `2400` | 大包停留及其上限 |
-| `plaque` | `censer` | `censer` 香炉 / `board` 木牌 |
+| `enabled` | `true` | When false, the overlay does not register |
+| `autoDelayMs` | `1000` | Busy wait before the first auto-knock (ms) |
+| `autoIntervalMs` | `1000` | Auto-knock interval while busy (ms) |
+| `autoHitMs` | `280` | Auto-hit pose hold before idle (ms) |
+| `comboThreshold` | `5` | Manual knocks since idle that release into the big bump |
+| `bumpMs` / `bumpMaxMs` | `800` / `2400` | Small-bump hold and its ceiling (ms) |
+| `bumpBigMs` / `bumpBigMaxMs` | `800` / `2400` | Big-bump hold and its ceiling (ms) |
+| `plaque` | `censer` | Merit plaque art: `censer` or `board` |
 
-## 发布清单
+## Model Experience
 
-1. 把本目录推到 GitHub 公开仓库，加上 topic `dsh`、`dsh-plugin`、`deepseek-harness`。
-2. 等 DeepSeek Harness 有 tagged npm 发布后，把 `peerDependencies` 钉到实际版本，再 `pnpm publish --access public`。
-3. 在 Harness 仓库 Discussions 的 Show and tell 贴安装命令；没有官方插件商店，收录靠 npm 搜索、GitHub topic 和社区转载。
+None, as this overlay is a browser-only toy: knocks and merit never enter the session log, prompt, schema, stream, or tool result.
 
-当前 Harness 仍是 pre-release，`@deepseek-ai/dsh-*` 多数还不在 npm 上。第三方用户要从源码跑 `dsh`，并用上面的 `link:` 安装本包。
+#### KV Cache effect
 
-## 开发
+None; the package never assembles or sends provider requests.
+
+## Known Limitations and Deferred Work
+
+- **Placeholder sprites** — the shipped files are labeled stand-ins; replacing them is an import-path change, not a slot change.
+- **Merit is browser-local** — the exclusive store keeps per-session counts in `localStorage` under `dsh.muyu.merit`. Reload and plugin-fiber remount rehydrate that map. A missing session id shows 0. Quota or private-mode storage failure disables persistence for this page only. Nothing is written to the session log.
+- **No dragging** — the sprite stays in the lower-right corner so it does not cover the Cordis panel.
+
+## Development
 
 ```bash
 pnpm install
@@ -84,7 +89,13 @@ pnpm test
 pnpm run build
 ```
 
-`prepare` 必须能在没有旁边那份 harness checkout 的情况下打出 `lib/`。浏览器半是 Cordis 模块表用的 CJS factory（`window.__ModuleLoader__.load`），PNG 和 CSS Modules 打进 `lib/client.js`。
+`prepare` emits `lib/` from `src/` without a sibling harness checkout. The browser half is a CJS factory for the Cordis module table (`window.__ModuleLoader__.load`); PNG and CSS Modules land inside `lib/client.js`.
+
+## Publishing
+
+1. Push this directory to a public GitHub repository and add topics `dsh`, `dsh-plugin`, `deepseek-harness`.
+2. After Harness has a tagged npm release, pin `peerDependencies` to that range and run `pnpm publish --access public`.
+3. Post the install command in Harness Discussions (Show and tell). There is no official plugin marketplace; discovery is npm search, GitHub topics, and community lists.
 
 ## License
 

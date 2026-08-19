@@ -51,7 +51,7 @@ const node: UserConfig = {
   platform: 'node',
   target: 'es2024',
   fixedExtension: false,
-  dts: false,
+  dts: true,
   clean: true,
 }
 
@@ -64,13 +64,15 @@ const client: UserConfig = {
   dts: false,
   sourcemap: true,
   clean: false,
-  external: [...CLIENT_EXTERNALS],
+  deps: {
+    neverBundle: [...CLIENT_EXTERNALS],
+    alwaysBundle: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
+  },
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV ?? 'production'),
     'import.meta.env.MODE': JSON.stringify(process.env.NODE_ENV ?? 'production'),
     'import.meta.env': JSON.stringify({ MODE: process.env.NODE_ENV ?? 'production' }),
   },
-  noExternal: (id: string) => (CLIENT_EXTERNALS.includes(id) ? undefined : true),
   plugins: [
     {
       name: 'dsh-css-modules-inline',
