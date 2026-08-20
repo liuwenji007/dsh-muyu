@@ -1,5 +1,7 @@
 # dsh-muyu
 
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+
 [中文](README.md) | English
 
 Harness is still preview. Capacity feels tight, the API sometimes crawls, and a loop can die mid-turn. Waiting those minutes gets under your skin — so here is a sulky little blue whale in the corner. Knock her once for a merit while you wait. Hope the compute farms catch up and the prices come down. When she is busy she knocks herself; AFK merit, goof off a little.

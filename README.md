@@ -1,5 +1,7 @@
 # dsh-muyu
 
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+
 中文 | [English](README.en.md)
 
 Harness 还是 preview 版本，最近算力不够，感觉api也有点降速，loop 有时说断就断。等loop的过程有时候好几分钟，我这个气呀，做了个右下角不争气的小肥鲸，敲一下记一功德，等待的时候敲敲她吧，希望deepseek算力中心早点建起来，梁叔叔再把模型价格打下来。它忙的时候自己也会敲，挂机加功德了，没事摸摸鱼吧。
