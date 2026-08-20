@@ -14,6 +14,7 @@ export const ART_PACK_FILES = [
   'manual-hit.png',
   'bump.png',
   'bump-big.png',
+  'bump-recover.png',
   'stick.png',
   'board.png',
   'censer.png',
@@ -28,7 +29,11 @@ static CDN, then paste the folder URL into Settings → Wooden fish →
 Custom art base URL.
 
 Required files:
-${ART_PACK_FILES.map(name => `- ${name}`).join('\n')}
+${ART_PACK_FILES.filter(name => name !== 'bump-recover.png').map(name => `- ${name}`).join('\n')}
+
+Optional:
+- bump-recover.png — after a big bump, play this then idle. If missing, the
+  overlay falls back to bump.png (small bump) as before.
 
 Leave the base URL empty to use the packaged sprites again.
 `
@@ -39,6 +44,7 @@ const FILE_TO_SRC: Readonly<Record<(typeof ART_PACK_FILES)[number], string>> = {
   'manual-hit.png': POSE_SRC.manualHit,
   'bump.png': POSE_SRC.bump,
   'bump-big.png': POSE_SRC.bumpBig,
+  'bump-recover.png': POSE_SRC.bumpRecover,
   'stick.png': STICK_SRC,
   'board.png': PLAQUE_SRC.board,
   'censer.png': PLAQUE_SRC.censer,

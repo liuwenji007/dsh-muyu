@@ -45,11 +45,19 @@ export type MuyuArtTunables = {
   readonly stickHotspotY: number
 }
 
+/**
+ * Runtime art capability: whether the current pack has `bump-recover.png`.
+ * Packaged sprites always do; a custom prefix is probed in the widget.
+ */
+export type MuyuArtCapabilities = {
+  readonly hasBumpRecover: boolean
+}
+
 /** Full overlay tunables before defaults (prefs + optional art overrides). */
-export interface MuyuConfig extends MuyuPrefs, Partial<MuyuArtTunables> {}
+export interface MuyuConfig extends MuyuPrefs, Partial<MuyuArtTunables>, Partial<MuyuArtCapabilities> {}
 
 /** Full overlay tunables after defaults. */
-export type ResolvedMuyuConfig = ResolvedMuyuPrefs & MuyuArtTunables
+export type ResolvedMuyuConfig = ResolvedMuyuPrefs & MuyuArtTunables & MuyuArtCapabilities
 
 /** Sprite timing and stick hotspot. Not shown on the settings page. */
 export const ART_TUNABLES: MuyuArtTunables = {
@@ -134,5 +142,6 @@ export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
     bumpBigMaxMs: input.bumpBigMaxMs ?? ART_TUNABLES.bumpBigMaxMs,
     stickHotspotX: input.stickHotspotX ?? ART_TUNABLES.stickHotspotX,
     stickHotspotY: input.stickHotspotY ?? ART_TUNABLES.stickHotspotY,
+    hasBumpRecover: input.hasBumpRecover ?? true,
   }
 }

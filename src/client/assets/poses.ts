@@ -4,6 +4,7 @@ import autoHit from './auto-hit.png'
 import manualHit from './manual-hit.png'
 import bump from './bump.png'
 import bumpBig from './bump-big.png'
+import bumpRecover from './bump-recover.png'
 import stick from './stick.png'
 import board from './board.png'
 import censer from './censer.png'
@@ -17,6 +18,7 @@ export const POSE_SRC: Readonly<Record<MuyuPose, string>> = {
   manualHit,
   bump,
   bumpBig,
+  bumpRecover,
 }
 
 /** Wooden-stick cursor image (not composited onto the character). */

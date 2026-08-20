@@ -36,6 +36,7 @@ describe('resolveMuyuConfig', () => {
       stickHotspotY: 28,
       plaque: 'censer',
       artBaseUrl: '',
+      hasBumpRecover: true,
     })
   })
 
@@ -114,7 +115,7 @@ describe('stepMuyu', () => {
     expect(state.comboStartedAt).toBeNull()
   })
 
-  it('releases big bump then small bump once combo reaches the threshold', () => {
+  it('releases big bump then recover pose once combo reaches the threshold', () => {
     let state = initialMuyuState()
     for (let now = 0; now < 5; now += 1) {
       ;({ state } = step(state, { type: 'pointerDown', now }))
@@ -128,10 +129,27 @@ describe('stepMuyu', () => {
     ;({ state } = step(state, { type: 'tick', now: 179, running: false }))
     expect(state.pose).toBe('bumpBig')
     ;({ state } = step(state, { type: 'tick', now: 180, running: false }))
-    expect(state.pose).toBe('bump')
+    expect(state.pose).toBe('bumpRecover')
     ;({ state } = step(state, { type: 'tick', now: 329, running: false }))
-    expect(state.pose).toBe('bump')
+    expect(state.pose).toBe('bumpRecover')
     ;({ state } = step(state, { type: 'tick', now: 330, running: false }))
+    expect(state.pose).toBe('idle')
+  })
+
+  it('falls back to small bump after big bump when recover art is missing', () => {
+    const noRecover = resolveMuyuConfig({
+      comboThreshold: 5, bumpMs: 100, bumpBigMs: 80, hasBumpRecover: false,
+    })
+    let state = initialMuyuState()
+    for (let now = 0; now < 5; now += 1) {
+      ;({ state } = stepMuyu(state, { type: 'pointerDown', now }, noRecover))
+      if (now < 4) ({ state } = stepMuyu(state, { type: 'pointerUp', now }, noRecover))
+    }
+    ;({ state } = stepMuyu(state, { type: 'pointerUp', now: 50 }, noRecover))
+    expect(state.pose).toBe('bumpBig')
+    ;({ state } = stepMuyu(state, { type: 'tick', now: 180, running: false }, noRecover))
+    expect(state.pose).toBe('bump')
+    ;({ state } = stepMuyu(state, { type: 'tick', now: 330, running: false }, noRecover))
     expect(state.pose).toBe('idle')
   })
 
@@ -188,6 +206,20 @@ describe('stepMuyu', () => {
     expect(state.pose).toBe('idle')
   })
 
+  it('lets a knock interrupt a recover pose', () => {
+    let state = initialMuyuState()
+    for (let now = 0; now < 5; now += 1) {
+      ;({ state } = step(state, { type: 'pointerDown', now }))
+      if (now < 4) ({ state } = step(state, { type: 'pointerUp', now }))
+    }
+    ;({ state } = step(state, { type: 'pointerUp', now: 50 }))
+    ;({ state } = step(state, { type: 'tick', now: 180, running: false }))
+    expect(state.pose).toBe('bumpRecover')
+    ;({ state } = step(state, { type: 'pointerDown', now: 181 }))
+    expect(state.pose).toBe('manualHit')
+    expect(state.combo).toBe(6)
+  })
+
   it('lets a knock interrupt a big-bump recovery', () => {
     let state = initialMuyuState()
     for (let now = 0; now < 5; now += 1) {
@@ -237,7 +269,7 @@ describe('stepMuyu', () => {
     expect(streak.pose).toBe('bumpBig')
     expect(streak.recoverAt).toBe(1200)
     ;({ state: streak } = stepMuyu(streak, { type: 'tick', now: 1200, running: false }, cap))
-    expect(streak.pose).toBe('bump')
+    expect(streak.pose).toBe('bumpRecover')
     expect(streak.recoverAt).toBe(1450)
   })
 

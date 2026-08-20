@@ -79,10 +79,10 @@ dsh --profile web
 | 功德牌 | 香炉 | 香炉或木牌 |
 | 忙碌后第一次自动敲 | 1000 ms | |
 | 自动敲间隔 | 1000 ms | |
-| 大包连击阈值 | 5 | 达到后松手先大包再小包 |
+| 大包连击阈值 | 5 | 达到后松手先大包，有消包图则消包再笑脸，否则小包 |
 | 自定义图源前缀 | （空） | 填 CDN/静态目录 URL，留空用内置图 |
 
-图源目录里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。改完即时生效，不用重新安装插件。
+图源目录里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。`bump-recover.png` 可选：有则大包后先消包再回笑脸，没有则仍走小包。改完即时生效，不用重新安装插件。
 
 在 **设置 → 木鱼 → 导出官方图包** 可下载同名 zip，改图后上传到任意静态托管，把目录 URL 填回「自定义图源前缀」即可分享二创皮肤。
 

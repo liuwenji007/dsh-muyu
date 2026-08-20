@@ -5,7 +5,7 @@
 import type { ResolvedMuyuConfig } from '../config.ts'
 
 /** Character sprite the widget shows. The stick is a cursor, not a pose. */
-export type MuyuPose = 'idle' | 'autoHit' | 'manualHit' | 'bump' | 'bumpBig'
+export type MuyuPose = 'idle' | 'autoHit' | 'manualHit' | 'bump' | 'bumpBig' | 'bumpRecover'
 
 /** Machine fields that are not session merit. */
 export interface MuyuMachineState {
@@ -132,8 +132,7 @@ function tick(
   if (!running && next.pose === 'autoHit') {
     return { state: endManualStreak({ ...next, pose: 'idle', recoverAt: null }), meritDelta: 0 }
   }
-  const recovering = next.pose === 'bump' || next.pose === 'bumpBig'
-  if (recovering) return { state: advanceRecovery(next, now, tunables), meritDelta: 0 }
+  if (isRecovering(next.pose)) return { state: advanceRecovery(next, now, tunables), meritDelta: 0 }
   if (next.pose === 'autoHit') {
     if (next.recoverAt === null || now >= next.recoverAt) {
       return { state: { ...next, pose: 'idle', recoverAt: null }, meritDelta: 0 }
@@ -187,11 +186,15 @@ function advanceRecovery(
   if (state.pose === 'bumpBig') {
     return {
       ...state,
-      pose: 'bump',
+      pose: tunables.hasBumpRecover ? 'bumpRecover' : 'bump',
       recoverAt: now + stageHoldMs(tunables.bumpMs, state.recoveryExtraMs, tunables.bumpMaxMs),
     }
   }
   return endManualStreak({ ...state, pose: 'idle', recoverAt: null })
+}
+
+function isRecovering(pose: MuyuPose): boolean {
+  return pose === 'bump' || pose === 'bumpBig' || pose === 'bumpRecover'
 }
 
 function endManualStreak(state: MuyuMachineState): MuyuMachineState {

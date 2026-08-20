@@ -79,10 +79,10 @@ dsh --profile web
 | Plaque | censer | Censer or wooden board |
 | First auto-knock after busy | 1000 ms | |
 | Auto-knock interval | 1000 ms | |
-| Big-bump combo | 5 | Release at or above this plays big bump, then small |
+| Big-bump combo | 5 | Release at or above this plays big bump, then recover (or small bump if that sprite is missing) |
 | Custom art base URL | (empty) | CDN/static folder URL; blank keeps packaged sprites |
 
-Files under that prefix: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Changes apply immediately — no reinstall.
+Files under that prefix: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png`: after a big bump, play this then idle; if missing, keep the small-bump recovery. Changes apply immediately — no reinstall.
 
 **Settings → Wooden fish → Export official art pack** downloads a zip with those names. Remix, host the folder, paste its URL into the custom art base field to share a skin.
 

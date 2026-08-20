@@ -33,6 +33,8 @@ describe('resolveArtUrl', () => {
       .toBe('https://cdn.example/muyu/idle.png')
     expect(resolveArtUrl('https://cdn.example/muyu/', 'stick.png', 'builtin'))
       .toBe('https://cdn.example/muyu/stick.png')
+    expect(resolveArtUrl('https://cdn.example/muyu', 'bump-recover.png', 'builtin'))
+      .toBe('https://cdn.example/muyu/bump-recover.png')
   })
 })
 
