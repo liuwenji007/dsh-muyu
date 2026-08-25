@@ -83,13 +83,13 @@ dsh --profile web
 | Auto-knock interval | 1000 ms | |
 | Big-bump combo | 5 | Release at or above this plays big bump, then recover (or small bump if that sprite is missing) |
 | Art source | built-in | Built-in / local / remote URL / remote zip |
-| Local pack | (empty) | Folder or PNGs, this browser only — for making and debug |
+| Local pack | (empty) | Folder or PNGs; pose frames can be previewed, panned, and scaled into one crop |
 | Pack URL | (empty) | Hosted directory or `.zip` URL |
 | Import zip | — | Same remote group as URL; does not overwrite the local working pack |
 
 Files in that folder or zip: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png`: after a big bump, play this then idle; if missing, keep the small-bump recovery. Changes apply immediately — no reinstall.
 
-**Settings → Wooden fish → Export official art pack** downloads a zip with those names. Load the folder as a local pack while you remix; to share, host the folder or zip and send the URL, or let others import the zip. A zip URL needs CORS on the host.
+**Settings → Wooden fish → Export official art pack** downloads a zip with those names. Load the folder as a local pack and align poses in the workbench; to share, host the folder or zip and send the URL, or let others import the zip. A zip URL needs CORS on the host.
 
 Local pack and remote zip use separate slots, so trying someone else’s zip does not wipe the files you are editing.
 

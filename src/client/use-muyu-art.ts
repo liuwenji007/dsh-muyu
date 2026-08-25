@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ResolvedMuyuPrefs } from '../config.ts'
 import { collectArtPackFromZip, isZipArtUrl } from './art-files.ts'
 import {
-  loadArtPack, objectUrlsForPack, revokeObjectUrls, type ArtPackSlot,
+  loadArtPack, objectUrlsForFittedPack, objectUrlsForPack, revokeObjectUrls, type ArtPackSlot,
 } from './art-idb.ts'
 import type { ArtFileSrcMap } from './art-src.ts'
 import {
@@ -82,8 +82,12 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
 
     if (slot !== null) {
       void loadArtPack(slot)
-        .then((pack) => {
-          adopt(packKey, pack === null ? undefined : objectUrlsForPack(pack.files))
+        .then(async (pack) => {
+          if (pack === null) {
+            adopt(packKey, undefined)
+            return
+          }
+          adopt(packKey, await objectUrlsForFittedPack(pack))
         })
         .catch(() => { adopt(packKey, undefined) })
     } else {

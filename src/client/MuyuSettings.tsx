@@ -2,14 +2,17 @@
  * Settings section: feel prefs, local working pack, and remote URL/zip.
  * Writes the exclusive store; does not touch Host yaml or settingsScope.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
 import type { PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { downloadBuiltinArtPack } from './art-pack.ts'
+import { ArtWorkbench } from './ArtWorkbench.tsx'
+import { initPoseLayout, type ArtFit, type ArtStage } from './art-fit.ts'
 import {
   ART_PACK_MAX_ZIP_BYTES, collectArtPack, collectArtPackFromZip,
 } from './art-files.ts'
-import { clearArtPack, loadArtPack, saveArtPack } from './art-idb.ts'
+import { clearArtPack, loadArtPack, saveArtPack, saveArtPackLayout, type StoredArtPack } from './art-idb.ts'
+import type { ArtPackFile } from './art-pack.ts'
 import type { createMuyuStore } from './stores.ts'
 import css from './MuyuSettings.module.css'
 
@@ -55,7 +58,9 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
   const [importStatus, setImportStatus] = useState<ImportStatus>('idle')
   const [missingNames, setMissingNames] = useState<string[]>([])
   const [localNames, setLocalNames] = useState<string[]>([])
+  const [localPack, setLocalPack] = useState<StoredArtPack | null>(null)
   const [zipNames, setZipNames] = useState<string[]>([])
+  const skipLocalReload = useRef(false)
 
   const patch = (next: MuyuPrefs) => {
     try {
@@ -71,13 +76,25 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
   }
 
   useEffect(() => {
+    if (skipLocalReload.current) {
+      skipLocalReload.current = false
+      return
+    }
     let cancelled = false
-    void Promise.all([loadArtPack('local'), loadArtPack('zip')]).then(([local, zip]) => {
+    void Promise.all([loadArtPack('local'), loadArtPack('zip')]).then(async ([local, zip]) => {
       if (cancelled) return
-      setLocalNames(local?.names ?? [])
+      let nextLocal = local
+      if (nextLocal !== null && (nextLocal.stage === undefined || nextLocal.fits === undefined)) {
+        const layout = await initPoseLayout(nextLocal.files)
+        nextLocal = await saveArtPackLayout('local', layout) ?? { ...nextLocal, ...layout }
+      }
+      if (cancelled) return
+      setLocalPack(nextLocal)
+      setLocalNames(nextLocal?.names ?? [])
       setZipNames(zip?.names ?? [])
     }).catch(() => {
       if (!cancelled) {
+        setLocalPack(null)
         setLocalNames([])
         setZipNames([])
       }
@@ -112,8 +129,18 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       return
     }
     try {
-      await saveArtPack(slot, collected.files)
-      if (slot === 'local') setLocalNames(collected.names)
+      const layout = slot === 'local' ? await initPoseLayout(collected.files) : undefined
+      await saveArtPack(slot, collected.files, layout)
+      if (slot === 'local') {
+        setLocalNames(collected.names)
+        setLocalPack({
+          files: collected.files,
+          names: collected.names,
+          savedAt: Date.now(),
+          stage: layout?.stage,
+          fits: layout?.fits,
+        })
+      }
       else setZipNames(collected.names)
       bumpRev({ artSource: slot })
       setMissingNames([])
@@ -159,6 +186,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       try {
         await clearArtPack('local')
         setLocalNames([])
+        setLocalPack(null)
         bumpRev({ artSource: prefs.artSource === 'local' ? 'builtin' : prefs.artSource })
         setImportStatus('idle')
       } catch {
@@ -178,6 +206,17 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
         setImportStatus('fail')
       }
     })()
+  }
+
+  const onCommitLayout = (layout: { stage: ArtStage; fits: Partial<Record<ArtPackFile, ArtFit>> }) => {
+    setLocalPack(prev => prev === null ? prev : { ...prev, ...layout })
+    skipLocalReload.current = true
+    void saveArtPackLayout('local', layout).then(() => {
+      bumpRev({})
+    }).catch(() => {
+      skipLocalReload.current = false
+      setImportStatus('fail')
+    })
   }
 
   const importHint = importStatus === 'ok'
@@ -328,6 +367,9 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
           <p className={importStatus === 'ok' ? css.status : `${css.status} ${css.statusError}`}>
             {importHint}
           </p>
+        )}
+        {localPack !== null && localPack.stage !== undefined && (
+          <ArtWorkbench pack={localPack} t={t} onCommitLayout={onCommitLayout} />
         )}
       </section>
 

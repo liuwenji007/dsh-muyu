@@ -2,7 +2,8 @@
  * Persist local (make/debug) and zip (share/use) art packs in IndexedDB.
  * Two slots so importing a zip never overwrites the working folder pack.
  */
-import type { ArtPackFile } from './art-pack.ts'
+import { isArtPackPose, type ArtPackFile } from './art-pack.ts'
+import { rasterizeFit, type ArtFit, type ArtStage } from './art-fit.ts'
 
 const DB_NAME = 'dsh.muyu.art'
 const DB_VERSION = 1
@@ -15,6 +16,10 @@ export type StoredArtPack = {
   files: Partial<Record<ArtPackFile, Blob>>
   names: ArtPackFile[]
   savedAt: number
+  /** Shared crop window for character poses; missing on packs imported before the workbench. */
+  stage?: ArtStage
+  /** Pan/zoom per pose, in {@link stage} pixel space. */
+  fits?: Partial<Record<ArtPackFile, ArtFit>>
 }
 
 function idbFactory(): IDBFactory | undefined {
@@ -52,9 +57,42 @@ function requestToPromise<T>(req: IDBRequest<T>): Promise<T> {
 export async function saveArtPack(
   slot: ArtPackSlot,
   files: Partial<Record<ArtPackFile, Blob>>,
+  layout?: { stage: ArtStage; fits: Partial<Record<ArtPackFile, ArtFit>> },
 ): Promise<StoredArtPack> {
   const names = Object.keys(files) as ArtPackFile[]
-  const record: StoredArtPack = { files, names, savedAt: Date.now() }
+  const record: StoredArtPack = {
+    files,
+    names,
+    savedAt: Date.now(),
+    stage: layout?.stage,
+    fits: layout?.fits,
+  }
+  await putPack(slot, record)
+  return record
+}
+
+/**
+ * Update crop layout without replacing the original PNGs.
+ * @param slot - local or zip.
+ * @param layout - stage + fits.
+ */
+export async function saveArtPackLayout(
+  slot: ArtPackSlot,
+  layout: { stage: ArtStage; fits: Partial<Record<ArtPackFile, ArtFit>> },
+): Promise<StoredArtPack | null> {
+  const current = await loadArtPack(slot)
+  if (current === null) return null
+  const record: StoredArtPack = {
+    ...current,
+    stage: layout.stage,
+    fits: layout.fits,
+    savedAt: Date.now(),
+  }
+  await putPack(slot, record)
+  return record
+}
+
+async function putPack(slot: ArtPackSlot, record: StoredArtPack): Promise<void> {
   const db = await openDb()
   try {
     const tx = db.transaction(STORE, 'readwrite')
@@ -67,7 +105,6 @@ export async function saveArtPack(
   } finally {
     db.close()
   }
-  return record
 }
 
 /**
@@ -110,7 +147,7 @@ export async function clearArtPack(slot: ArtPackSlot): Promise<void> {
 }
 
 /**
- * Turn stored blobs into object URLs. Caller must revoke.
+ * Turn stored blobs into object URLs without cropping. Caller must revoke.
  * @param files - pack blobs.
  */
 export function objectUrlsForPack(
@@ -119,6 +156,35 @@ export function objectUrlsForPack(
   const out: Partial<Record<ArtPackFile, string>> = {}
   for (const [name, blob] of Object.entries(files)) {
     if (blob instanceof Blob) out[name as ArtPackFile] = URL.createObjectURL(blob)
+  }
+  return out
+}
+
+/**
+ * Object URLs for overlay playback: pose frames are cropped to the shared stage.
+ * Stick / plaque / add stay original.
+ * @param pack - stored pack with optional layout.
+ */
+export async function objectUrlsForFittedPack(
+  pack: StoredArtPack,
+): Promise<Partial<Record<ArtPackFile, string>>> {
+  const stage = pack.stage
+  const fits = pack.fits
+  const out: Partial<Record<ArtPackFile, string>> = {}
+  for (const [name, blob] of Object.entries(pack.files)) {
+    if (!(blob instanceof Blob)) continue
+    const file = name as ArtPackFile
+    const fit = fits?.[file]
+    if (stage !== undefined && fit !== undefined && isArtPackPose(file)) {
+      try {
+        const cropped = await rasterizeFit(blob, fit, stage)
+        out[file] = URL.createObjectURL(cropped)
+        continue
+      } catch {
+        // fall through to the original blob
+      }
+    }
+    out[file] = URL.createObjectURL(blob)
   }
   return out
 }

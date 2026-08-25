@@ -23,6 +23,22 @@ export const ART_PACK_FILES = [
 
 export type ArtPackFile = (typeof ART_PACK_FILES)[number]
 
+/** Character poses that share one overlay sprite slot and need alignment. */
+export const ART_PACK_POSES = [
+  'idle.png',
+  'auto-hit.png',
+  'manual-hit.png',
+  'bump.png',
+  'bump-big.png',
+  'bump-recover.png',
+] as const
+
+export type ArtPackPoseFile = (typeof ART_PACK_POSES)[number]
+
+export function isArtPackPose(name: string): name is ArtPackPoseFile {
+  return (ART_PACK_POSES as readonly string[]).includes(name)
+}
+
 /** Required sprites. `bump-recover.png` may be omitted. */
 export const ART_PACK_REQUIRED = ART_PACK_FILES.filter(
   (name): name is Exclude<ArtPackFile, 'bump-recover.png'> => name !== 'bump-recover.png',
