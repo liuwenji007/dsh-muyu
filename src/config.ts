@@ -5,6 +5,9 @@
  */
 import z from 'schemastery'
 
+/** Which sprite set the overlay paints. Local and remote packs are stored apart. */
+export type MuyuArtSource = 'builtin' | 'local' | 'url' | 'zip'
+
 /** User-facing prefs before schema defaults. */
 export interface MuyuPrefs {
   /** When false, the overlay widget does not paint. The settings page stays. */
@@ -18,10 +21,17 @@ export interface MuyuPrefs {
   /** Merit plaque art: wooden board or incense censer. */
   plaque?: 'censer' | 'board'
   /**
-   * Optional URL/path prefix for custom sprites. Empty uses packaged art.
-   * Files under the prefix must match the built-in basenames (idle.png, …).
+   * Active art source. `local` is the working pack (debug / make).
+   * `url` and `zip` are the share/use path and live in the same settings group.
+   */
+  artSource?: MuyuArtSource
+  /**
+   * Remote directory prefix, or a `.zip` URL. Empty is ignored unless
+   * {@link artSource} is `url`.
    */
   artBaseUrl?: string
+  /** Bumped when a local or zip pack is saved or cleared so the overlay reloads. */
+  artPackRev?: number
 }
 
 /** User-facing prefs after schema defaults. */
@@ -31,7 +41,9 @@ export type ResolvedMuyuPrefs = {
   readonly autoIntervalMs: number
   readonly comboThreshold: number
   readonly plaque: 'board' | 'censer'
+  readonly artSource: MuyuArtSource
   readonly artBaseUrl: string
+  readonly artPackRev: number
 }
 
 /** Art-locked timings and cursor hotspot, keyed to the shipped sprites. */
@@ -70,7 +82,7 @@ export const ART_TUNABLES: MuyuArtTunables = {
   stickHotspotY: 28,
 }
 
-/** Settings-page / store schema for the five user prefs. */
+/** Settings-page / store schema for user prefs. */
 export const Prefs: z<MuyuPrefs> = z.object({
   enabled: z
     .boolean()
@@ -98,10 +110,20 @@ export const Prefs: z<MuyuPrefs> = z.object({
     .union(['board', 'censer'])
     .default('censer')
     .description('Merit plaque art: wooden board or incense censer'),
+  artSource: z
+    .union(['builtin', 'local', 'url', 'zip'])
+    .default('builtin')
+    .description('Active art source: packaged, local working pack, remote URL, or imported zip'),
   artBaseUrl: z
     .string()
     .default('')
-    .description('Optional sprite base URL; empty keeps packaged art'),
+    .description('Remote sprite directory URL or .zip URL'),
+  artPackRev: z
+    .number()
+    .step(1)
+    .min(0)
+    .default(0)
+    .description('Local/zip pack generation; overlay reloads when this changes'),
 })
 
 /**
@@ -116,7 +138,9 @@ export const Config = z.object({})
  * @returns every user pref filled.
  */
 export function resolveMuyuPrefs(input: MuyuPrefs = {}): ResolvedMuyuPrefs {
-  return Prefs(input) as ResolvedMuyuPrefs
+  const artSource = input.artSource
+    ?? (typeof input.artBaseUrl === 'string' && input.artBaseUrl.trim() !== '' ? 'url' : undefined)
+  return Prefs(artSource === undefined ? input : { ...input, artSource }) as ResolvedMuyuPrefs
 }
 
 /**
@@ -131,7 +155,9 @@ export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
     autoIntervalMs: input.autoIntervalMs,
     comboThreshold: input.comboThreshold,
     plaque: input.plaque,
+    artSource: input.artSource,
     artBaseUrl: input.artBaseUrl,
+    artPackRev: input.artPackRev,
   })
   return {
     ...prefs,

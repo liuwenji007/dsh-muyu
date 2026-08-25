@@ -15,8 +15,21 @@ describe('resolveMuyuPrefs', () => {
       autoIntervalMs: 1000,
       comboThreshold: 5,
       plaque: 'censer',
+      artSource: 'builtin',
       artBaseUrl: '',
+      artPackRev: 0,
     })
+  })
+
+  it('treats a persisted custom URL as the remote url source', () => {
+    expect(resolveMuyuPrefs({ artBaseUrl: 'https://cdn.example/muyu/' }).artSource).toBe('url')
+  })
+
+  it('keeps an explicit local source even when a URL is also stored', () => {
+    expect(resolveMuyuPrefs({
+      artSource: 'local',
+      artBaseUrl: 'https://cdn.example/muyu/',
+    }).artSource).toBe('local')
   })
 })
 

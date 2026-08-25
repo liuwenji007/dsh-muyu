@@ -20,7 +20,7 @@ Wooden-fish overlay in the lower-right of the Web client. Knock the head for mer
 - Plaque is censer or board (default censer). Exact digits through 9999, then `Nk`.
 - `prefers-reduced-motion` skips the hop and the floating +1.
 
-Tune feel and art in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold, custom art base URL).
+Tune feel and art in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold, art source). Local pack is for making and debugging; URL / zip is for sharing and using someone else’s pack.
 
 ## Install
 
@@ -82,17 +82,22 @@ dsh --profile web
 | First auto-knock after busy | 1000 ms | |
 | Auto-knock interval | 1000 ms | |
 | Big-bump combo | 5 | Release at or above this plays big bump, then recover (or small bump if that sprite is missing) |
-| Custom art base URL | (empty) | CDN/static folder URL; blank keeps packaged sprites |
+| Art source | built-in | Built-in / local / remote URL / remote zip |
+| Local pack | (empty) | Folder or PNGs, this browser only — for making and debug |
+| Pack URL | (empty) | Hosted directory or `.zip` URL |
+| Import zip | — | Same remote group as URL; does not overwrite the local working pack |
 
-Files under that prefix: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png`: after a big bump, play this then idle; if missing, keep the small-bump recovery. Changes apply immediately — no reinstall.
+Files in that folder or zip: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png`: after a big bump, play this then idle; if missing, keep the small-bump recovery. Changes apply immediately — no reinstall.
 
-**Settings → Wooden fish → Export official art pack** downloads a zip with those names. Remix, host the folder, paste its URL into the custom art base field to share a skin.
+**Settings → Wooden fish → Export official art pack** downloads a zip with those names. Load the folder as a local pack while you remix; to share, host the folder or zip and send the URL, or let others import the zip. A zip URL needs CORS on the host.
+
+Local pack and remote zip use separate slots, so trying someone else’s zip does not wipe the files you are editing.
 
 Bump hold, auto-hit pose length, and the stick hotspot stay matched to the default art. Edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`.
 
 ## Notes
 
-- Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page.
+- Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Local and imported-zip packs live in IndexedDB (`dsh.muyu.art`), separate from the URL field. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page.
 - No dragging, so it does not cover the side panel.
 - You can also replace files under `src/client/assets/` and rebuild to ship a new default skin.
 

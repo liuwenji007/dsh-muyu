@@ -35,7 +35,9 @@ describe('resolveMuyuConfig', () => {
       stickHotspotX: 8,
       stickHotspotY: 28,
       plaque: 'censer',
+      artSource: 'builtin',
       artBaseUrl: '',
+      artPackRev: 0,
       hasBumpRecover: true,
     })
   })

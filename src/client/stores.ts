@@ -2,7 +2,7 @@
  * Per-session merit counters and user prefs. Exclusive store: create the
  * handle once in `apply` and pass it to both slot entries; module-level
  * handles are forbidden. Overlay scope is root, so one localStorage key
- * holds prefs, merit, and LRU timestamps.
+ * holds prefs, merit, and LRU timestamps. Art-pack blobs live in IndexedDB.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'

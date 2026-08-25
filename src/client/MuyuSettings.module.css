@@ -4,6 +4,7 @@
   gap: 1.5rem;
   max-width: 28rem;
   padding: 0.25rem 0 1rem;
+  position: relative;
   color: var(--dsw-text-primary, inherit);
 }
 
@@ -104,7 +105,8 @@
   accent-color: var(--dsw-accent, #3b82f6);
 }
 
-.button {
+.button,
+.fileButton {
   align-self: flex-start;
   min-height: 2.25rem;
   padding: 0.45rem 0.9rem;
@@ -118,7 +120,15 @@
   transition: border-color 120ms ease, background 120ms ease;
 }
 
-.button:hover {
+.fileButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.button:hover,
+.fileButton:hover {
   border-color: var(--dsw-accent, #3b82f6);
   background: color-mix(in srgb, var(--dsw-accent, #3b82f6) 10%, transparent);
 }
@@ -126,6 +136,34 @@
 .button:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.fileInput {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
+}
+
+.sourceList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sourceList legend {
+  padding: 0;
+  margin-bottom: 0.35rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .status {

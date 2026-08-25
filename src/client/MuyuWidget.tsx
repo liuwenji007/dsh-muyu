@@ -6,10 +6,8 @@ import clsx from 'clsx'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import { resolveMuyuConfig } from '../config.ts'
-import {
-  probeImageSrc, resolveAddSrc, resolvePlaqueSrc, resolvePoseSrc, resolveStickSrc,
-} from './art-src.ts'
 import { initialMuyuState, stepMuyu, type MuyuEvent, type MuyuPose } from './muyu-machine.ts'
+import { useMuyuArt } from './use-muyu-art.ts'
 import type { createMuyuStore } from './stores.ts'
 import type { MuyuKey } from './locales.ts'
 import css from './MuyuWidget.module.css'
@@ -61,19 +59,14 @@ export function MuyuWidget({
   })
   const prefs = useStore(s => s.prefs)
   const prefsTunables = useMemo(() => resolveMuyuConfig(prefs ?? {}), [prefs])
-  const poseSrc = useMemo(() => resolvePoseSrc(prefsTunables.artBaseUrl), [prefsTunables.artBaseUrl])
-  const stickSrc = useMemo(() => resolveStickSrc(prefsTunables.artBaseUrl), [prefsTunables.artBaseUrl])
-  const addSrc = useMemo(() => resolveAddSrc(prefsTunables.artBaseUrl), [prefsTunables.artBaseUrl])
-  const plaqueSrc = useMemo(
-    () => resolvePlaqueSrc(prefsTunables.artBaseUrl, prefsTunables.plaque),
-    [prefsTunables.artBaseUrl, prefsTunables.plaque],
-  )
-  const [hasBumpRecover, setHasBumpRecover] = useState(
-    () => prefsTunables.artBaseUrl.trim() === '',
-  )
+  const art = useMuyuArt(prefsTunables)
+  const poseSrc = art.poseSrc
+  const stickSrc = art.stickSrc
+  const addSrc = art.addSrc
+  const plaqueSrc = art.plaqueSrc
   const tunables = useMemo(
-    () => ({ ...prefsTunables, hasBumpRecover }),
-    [prefsTunables, hasBumpRecover],
+    () => ({ ...prefsTunables, hasBumpRecover: art.hasBumpRecover }),
+    [prefsTunables, art.hasBumpRecover],
   )
   const merit = useStore(s => {
     const map = s.bySession ?? {}
@@ -130,20 +123,6 @@ export function MuyuWidget({
       if (popTimer.current !== undefined) window.clearTimeout(popTimer.current)
     }
   }, [])
-
-  useEffect(() => {
-    const base = prefsTunables.artBaseUrl.trim()
-    if (base === '') {
-      setHasBumpRecover(true)
-      return
-    }
-    setHasBumpRecover(false)
-    let cancelled = false
-    void probeImageSrc(poseSrc.bumpRecover).then((ok) => {
-      if (!cancelled) setHasBumpRecover(ok)
-    })
-    return () => { cancelled = true }
-  }, [prefsTunables.artBaseUrl, poseSrc.bumpRecover])
 
   useEffect(() => {
     const next = stepMuyu(initialMuyuState(), { type: 'sessionChange' }, tunablesRef.current).state

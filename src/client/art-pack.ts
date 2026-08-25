@@ -7,7 +7,7 @@ import {
   ADD_SRC, PLAQUE_SRC, POSE_SRC, STICK_SRC,
 } from './assets/poses.ts'
 
-/** Filenames expected by artBaseUrl resolution. */
+/** Filenames expected by art-pack resolution. */
 export const ART_PACK_FILES = [
   'idle.png',
   'auto-hit.png',
@@ -21,21 +21,32 @@ export const ART_PACK_FILES = [
   'add.png',
 ] as const
 
+export type ArtPackFile = (typeof ART_PACK_FILES)[number]
+
+/** Required sprites. `bump-recover.png` may be omitted. */
+export const ART_PACK_REQUIRED = ART_PACK_FILES.filter(
+  (name): name is Exclude<ArtPackFile, 'bump-recover.png'> => name !== 'bump-recover.png',
+)
+
 const PACK_README = `dsh-muyu art pack
 =================
 
-Put these PNGs in one folder (keep the filenames), host the folder on any
-static CDN, then paste the folder URL into Settings → Wooden fish →
-Custom art base URL.
+Keep these filenames. Two ways to use the pack:
+
+- Make / debug: unzip into a folder, then Settings → Wooden fish → Local pack
+  → pick the folder (or the PNGs). Stays in this browser only.
+- Share / use: host the folder and paste the directory URL, send this zip, or
+  host the zip and paste its URL. Remote URL and zip import are the same
+  settings group.
 
 Required files:
-${ART_PACK_FILES.filter(name => name !== 'bump-recover.png').map(name => `- ${name}`).join('\n')}
+${ART_PACK_REQUIRED.map(name => `- ${name}`).join('\n')}
 
 Optional:
 - bump-recover.png — after a big bump, play this then idle. If missing, the
   overlay falls back to bump.png (small bump) as before.
 
-Leave the base URL empty to use the packaged sprites again.
+Switch the art source back to Built-in to use the packaged sprites again.
 `
 
 const FILE_TO_SRC: Readonly<Record<(typeof ART_PACK_FILES)[number], string>> = {
