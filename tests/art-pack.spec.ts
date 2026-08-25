@@ -5,7 +5,9 @@ import { deflateRawSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
 import { ART_PACK_FILES, crc32, zipStore } from '../src/client/art-pack.ts'
 import { collectArtPackFromZip } from '../src/client/art-files.ts'
-import { unzip } from '../src/client/art-zip.ts'
+import {
+  ART_PACK_MAX_UNCOMPRESSED_ENTRY, unzip,
+} from '../src/client/art-zip.ts'
 
 describe('zipStore', () => {
   it('builds a zip whose local header names the entry', () => {
@@ -35,6 +37,11 @@ describe('unzip', () => {
     const entries = await unzip(zip)
     expect(new TextDecoder().decode(entries['note.txt'])).toBe('deflate-me-please')
   })
+
+  it('rejects an entry whose uncompressed size exceeds the cap', async () => {
+    const oversized = new Uint8Array(ART_PACK_MAX_UNCOMPRESSED_ENTRY + 1)
+    await expect(unzip(zipStore({ 'bomb.png': oversized }))).rejects.toThrow(/too large/)
+  })
 })
 
 describe('collectArtPackFromZip', () => {
@@ -52,6 +59,20 @@ describe('collectArtPackFromZip', () => {
         expect(pack.files[name]).toBeDefined()
       }
     }
+  })
+
+  it('rejects when the zip itself is over the compressed-byte cap', async () => {
+    const huge = new Uint8Array(33 * 1024 * 1024)
+    const pack = await collectArtPackFromZip(huge)
+    expect(pack.ok).toBe(false)
+    if (!pack.ok) expect(pack.reason).toBe('tooLarge')
+  })
+
+  it('rejects when an entry exceeds the uncompressed cap', async () => {
+    const oversized = new Uint8Array(ART_PACK_MAX_UNCOMPRESSED_ENTRY + 1)
+    const pack = await collectArtPackFromZip(zipStore({ 'idle.png': oversized }))
+    expect(pack.ok).toBe(false)
+    if (!pack.ok) expect(pack.reason).toBe('tooLarge')
   })
 })
 

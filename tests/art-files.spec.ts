@@ -46,7 +46,20 @@ describe('collectArtPack', () => {
   it('rejects a pack missing a required file', () => {
     const result = collectArtPack(ART_PACK_REQUIRED.slice(1).map(name => png(name)))
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.missingRequired).toContain('idle.png')
+    if (!result.ok) {
+      expect(result.reason).toBe('missing')
+      expect(result.missingRequired).toContain('idle.png')
+    }
+  })
+
+  it('marks oversized known files as tooLarge when they leave required gaps', () => {
+    const huge = new Blob([new Uint8Array(9 * 1024 * 1024)])
+    const result = collectArtPack([
+      ...ART_PACK_REQUIRED.slice(1).map(name => png(name)),
+      { name: 'idle.png', blob: huge },
+    ])
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('tooLarge')
   })
 
   it('ignores macOS junk and optional recover can be omitted', () => {

@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ResolvedMuyuPrefs } from '../config.ts'
-import { collectArtPackFromZip, isZipArtUrl } from './art-files.ts'
+import { collectArtPackFromZip, fetchZipBytesCapped, freezeArtBlobs, isZipArtUrl } from './art-files.ts'
 import {
   loadArtPack, objectUrlsForFittedPack, objectUrlsForPack, revokeObjectUrls, type ArtPackSlot,
 } from './art-idb.ts'
@@ -30,12 +30,12 @@ function slotForSource(source: ResolvedMuyuPrefs['artSource']): ArtPackSlot | nu
 }
 
 async function fetchZipFileMap(url: string): Promise<ArtFileSrcMap> {
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`zip fetch ${response.status}`)
-  const buffer = new Uint8Array(await response.arrayBuffer())
+  const buffer = await fetchZipBytesCapped(url)
   const pack = await collectArtPackFromZip(buffer)
-  if (!pack.ok) throw new Error('zip missing required art files')
-  return objectUrlsForPack(pack.files)
+  if (!pack.ok) throw new Error(`zip pack rejected: ${pack.reason}`)
+  const frozen = await freezeArtBlobs(pack.files)
+  if (!frozen.ok) throw new Error(`zip pack rejected: ${frozen.reason}`)
+  return objectUrlsForPack(frozen.files)
 }
 
 /**

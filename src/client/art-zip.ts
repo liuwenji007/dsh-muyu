@@ -6,6 +6,12 @@ const EOCD = 0x0605_4b50
 const CENTRAL = 0x0201_4b50
 const LOCAL = 0x0403_4b50
 
+/** Reject a single uncompressed entry larger than this. */
+export const ART_PACK_MAX_UNCOMPRESSED_ENTRY = 8 * 1024 * 1024
+
+/** Reject a zip whose uncompressed payloads sum above this. */
+export const ART_PACK_MAX_UNCOMPRESSED_TOTAL = 48 * 1024 * 1024
+
 /**
  * Inflate a raw deflate stream (ZIP method 8).
  * @param data - compressed payload from a zip local file.
@@ -38,6 +44,7 @@ function decodeName(bytes: Uint8Array): string {
 
 /**
  * Unpack zip entries to basename → bytes. Directory entries are skipped.
+ * Rejects entries whose declared or actual uncompressed size exceeds the caps.
  * @param bytes - zip file bytes.
  */
 export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Array>> {
@@ -46,6 +53,7 @@ export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Arra
   const count = view.getUint16(eocd + 10, true)
   let offset = view.getUint32(eocd + 16, true)
   const out: Record<string, Uint8Array> = {}
+  let totalUncompressed = 0
 
   for (let i = 0; i < count; i += 1) {
     if (offset + 46 > bytes.length || view.getUint32(offset, true) !== CENTRAL) {
@@ -54,6 +62,7 @@ export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Arra
     const flags = view.getUint16(offset + 8, true)
     const method = view.getUint16(offset + 10, true)
     const compressedSize = view.getUint32(offset + 20, true)
+    const uncompressedSize = view.getUint32(offset + 24, true)
     const nameLen = view.getUint16(offset + 28, true)
     const extraLen = view.getUint16(offset + 30, true)
     const commentLen = view.getUint16(offset + 32, true)
@@ -64,6 +73,12 @@ export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Arra
 
     if ((flags & 0x0001) !== 0) throw new Error('encrypted zip is not supported')
     if (name.endsWith('/')) continue
+    if (uncompressedSize > ART_PACK_MAX_UNCOMPRESSED_ENTRY) {
+      throw new Error(`zip entry too large: ${name}`)
+    }
+    if (totalUncompressed + uncompressedSize > ART_PACK_MAX_UNCOMPRESSED_TOTAL) {
+      throw new Error('zip total uncompressed too large')
+    }
     if (localOffset + 30 > bytes.length || view.getUint32(localOffset, true) !== LOCAL) {
       throw new Error(`zip local header missing for ${name}`)
     }
@@ -81,6 +96,15 @@ export async function unzip(bytes: Uint8Array): Promise<Record<string, Uint8Arra
       data = await inflateRaw(payload)
     } else {
       throw new Error(`zip method ${method} is not supported`)
+    }
+    if (data.byteLength > ART_PACK_MAX_UNCOMPRESSED_ENTRY) {
+      throw new Error(`zip entry too large: ${name}`)
+    }
+    // Prefer declared size when present; still cap the actual inflate result.
+    const counted = uncompressedSize > 0 ? uncompressedSize : data.byteLength
+    totalUncompressed += counted
+    if (totalUncompressed > ART_PACK_MAX_UNCOMPRESSED_TOTAL) {
+      throw new Error('zip total uncompressed too large')
     }
     out[name] = data
   }

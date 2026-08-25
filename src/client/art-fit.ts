@@ -17,8 +17,16 @@ export type ArtStage = {
   height: number
 }
 
+export type ArtSize = {
+  width: number
+  height: number
+}
+
 export const ART_FIT_SCALE_MIN = 0.05
 export const ART_FIT_SCALE_MAX = 8
+
+/** Longest side allowed for imported sprites / stage canvas. */
+export const ART_PACK_MAX_EDGE = 2048
 
 /**
  * Scale-to-fit, centered. Used as the default so a new pack is fully visible.
@@ -61,6 +69,37 @@ export function panFit(fit: ArtFit, dx: number, dy: number): ArtFit {
 }
 
 /**
+ * Copy a fit onto another source size so both images share the same stage-space center.
+ * Keeps `sourceFit.scale`; only offsets change.
+ * @param sourceFit - fit of the reference pose.
+ * @param sourceSize - natural size of the reference pose.
+ * @param destSize - natural size of the destination pose.
+ */
+export function centerCopyFit(
+  sourceFit: ArtFit,
+  sourceSize: ArtSize,
+  destSize: ArtSize,
+): ArtFit {
+  const centerX = sourceFit.offsetX + sourceSize.width * sourceFit.scale / 2
+  const centerY = sourceFit.offsetY + sourceSize.height * sourceFit.scale / 2
+  return {
+    scale: sourceFit.scale,
+    offsetX: centerX - destSize.width * sourceFit.scale / 2,
+    offsetY: centerY - destSize.height * sourceFit.scale / 2,
+  }
+}
+
+/**
+ * Cap stage edges so rasterization cannot allocate huge canvases.
+ * @param stage - raw stage (often idle native size).
+ */
+export function clampStage(stage: ArtStage): ArtStage {
+  const width = Math.max(1, Math.min(ART_PACK_MAX_EDGE, Math.round(stage.width)))
+  const height = Math.max(1, Math.min(ART_PACK_MAX_EDGE, Math.round(stage.height)))
+  return { width, height }
+}
+
+/**
  * Natural pixel size of an image blob.
  * @param blob - PNG (or any bitmap the browser can decode).
  */
@@ -87,7 +126,7 @@ export async function blobSize(blob: Blob): Promise<{ width: number; height: num
 }
 
 /**
- * Default shared stage (idle size) and contain-fits for every pose.
+ * Default shared stage (idle size, clamped) and contain-fits for every pose.
  * Props are left unfitted so stick/plaque/add keep their own pixels.
  * @param files - imported pack blobs.
  */
@@ -98,7 +137,7 @@ export async function initPoseLayout(
   const idleSize = idle !== undefined
     ? await blobSize(idle)
     : { width: 512, height: 512 }
-  const stage: ArtStage = { width: idleSize.width, height: idleSize.height }
+  const stage = clampStage({ width: idleSize.width, height: idleSize.height })
   const fits: Partial<Record<ArtPackFile, ArtFit>> = {}
   for (const [name, blob] of Object.entries(files)) {
     if (!isArtPackPose(name) || !(blob instanceof Blob)) continue
@@ -109,17 +148,18 @@ export async function initPoseLayout(
 }
 
 /**
- * Draw `blob` through `fit` into a transparent PNG the size of `stage`.
+ * Draw `blob` through `fit` into a transparent PNG the size of `stage` (clamped).
  * @param blob - source image.
  * @param fit - pan/zoom.
  * @param stage - output crop window.
  */
 export async function rasterizeFit(blob: Blob, fit: ArtFit, stage: ArtStage): Promise<Blob> {
+  const clamped = clampStage(stage)
   const bitmap = await createImageBitmap(blob)
   try {
     const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(stage.width))
-    canvas.height = Math.max(1, Math.round(stage.height))
+    canvas.width = clamped.width
+    canvas.height = clamped.height
     const ctx = canvas.getContext('2d')
     if (ctx === null) throw new Error('canvas 2d unavailable')
     ctx.clearRect(0, 0, canvas.width, canvas.height)

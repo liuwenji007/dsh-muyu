@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import clsx from 'clsx'
 import { ART_PACK_POSES, type ArtPackFile } from './art-pack.ts'
 import {
-  ART_FIT_SCALE_MAX, ART_FIT_SCALE_MIN, blobSize, containFit, panFit, zoomFit,
+  ART_FIT_SCALE_MAX, ART_FIT_SCALE_MIN, blobSize, centerCopyFit, containFit, panFit, zoomFit,
   type ArtFit, type ArtStage,
 } from './art-fit.ts'
 import { objectUrlsForPack, revokeObjectUrls, type StoredArtPack } from './art-idb.ts'
@@ -169,9 +169,16 @@ export function ArtWorkbench({ pack, t, onCommitLayout }: ArtWorkbenchProps) {
   const copyToPoses = () => {
     if (active === undefined || stage === undefined) return
     const source = fitsRef.current[active]
-    if (source === undefined) return
+    const sourceSize = sizes[active]
+    if (source === undefined || sourceSize === undefined) return
     const merged = { ...fitsRef.current }
-    for (const name of poses) merged[name] = { ...source }
+    for (const name of poses) {
+      const destSize = sizes[name]
+      if (destSize === undefined) continue
+      merged[name] = name === active
+        ? { ...source }
+        : centerCopyFit(source, sourceSize, destSize)
+    }
     fitsRef.current = merged
     setFits(merged)
     persist()

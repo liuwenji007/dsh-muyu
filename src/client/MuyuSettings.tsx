@@ -9,7 +9,8 @@ import { downloadBuiltinArtPack } from './art-pack.ts'
 import { ArtWorkbench } from './ArtWorkbench.tsx'
 import { initPoseLayout, type ArtFit, type ArtStage } from './art-fit.ts'
 import {
-  ART_PACK_MAX_ZIP_BYTES, collectArtPack, collectArtPackFromZip,
+  ART_PACK_MAX_ZIP_BYTES, collectArtPack, collectArtPackFromZip, freezeArtBlobs,
+  type CollectArtPackResult,
 } from './art-files.ts'
 import { clearArtPack, loadArtPack, saveArtPack, saveArtPackLayout, type StoredArtPack } from './art-idb.ts'
 import type { ArtPackFile } from './art-pack.ts'
@@ -21,7 +22,7 @@ export type MuyuSettingsProps =
   & PropsStore<ReturnType<typeof createMuyuStore>>
   & PropsLocale<'muyu'>
 
-type ImportStatus = 'idle' | 'ok' | 'fail' | 'missing' | 'empty'
+type ImportStatus = 'idle' | 'ok' | 'fail' | 'missing' | 'empty' | 'tooLarge' | 'notImage'
 
 const ART_SOURCE_KEYS = [
   ['builtin', 'settings.artSource.builtin'],
@@ -119,29 +120,42 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     }
   }
 
+  const rejectCollected = (collected: Extract<CollectArtPackResult, { ok: false }>) => {
+    setMissingNames(collected.missingRequired)
+    setImportStatus(
+      collected.reason === 'tooLarge' ? 'tooLarge'
+        : collected.reason === 'notImage' ? 'notImage'
+          : 'missing',
+    )
+  }
+
   const applyCollected = async (
     slot: 'local' | 'zip',
-    collected: ReturnType<typeof collectArtPack>,
+    collected: CollectArtPackResult,
   ) => {
     if (!collected.ok) {
-      setMissingNames(collected.missingRequired)
-      setImportStatus('missing')
+      rejectCollected(collected)
       return
     }
     try {
-      const layout = slot === 'local' ? await initPoseLayout(collected.files) : undefined
-      await saveArtPack(slot, collected.files, layout)
+      const frozen = await freezeArtBlobs(collected.files)
+      if (!frozen.ok) {
+        rejectCollected(frozen)
+        return
+      }
+      const layout = slot === 'local' ? await initPoseLayout(frozen.files) : undefined
+      await saveArtPack(slot, frozen.files, layout)
       if (slot === 'local') {
-        setLocalNames(collected.names)
+        setLocalNames(frozen.names)
         setLocalPack({
-          files: collected.files,
-          names: collected.names,
+          files: frozen.files,
+          names: frozen.names,
           savedAt: Date.now(),
           stage: layout?.stage,
           fits: layout?.fits,
         })
       }
-      else setZipNames(collected.names)
+      else setZipNames(frozen.names)
       bumpRev({ artSource: slot })
       setMissingNames([])
       setImportStatus('ok')
@@ -168,7 +182,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       return
     }
     if (file.size > ART_PACK_MAX_ZIP_BYTES) {
-      setImportStatus('fail')
+      setImportStatus('tooLarge')
       return
     }
     void (async () => {
@@ -223,11 +237,15 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     ? t('settings.artImport.ok')
     : importStatus === 'fail'
       ? t('settings.artImport.fail')
-      : importStatus === 'missing'
-        ? `${t('settings.artImport.missing')} ${missingNames.join(', ')}`
-        : importStatus === 'empty'
-          ? t('settings.artImport.empty')
-          : ''
+      : importStatus === 'tooLarge'
+        ? t('settings.artImport.tooLarge')
+        : importStatus === 'notImage'
+          ? t('settings.artImport.notImage')
+          : importStatus === 'missing'
+            ? `${t('settings.artImport.missing')} ${missingNames.join(', ')}`
+            : importStatus === 'empty'
+              ? t('settings.artImport.empty')
+              : ''
 
   return (
     <form className={css.page} onSubmit={(event) => { event.preventDefault() }}>
