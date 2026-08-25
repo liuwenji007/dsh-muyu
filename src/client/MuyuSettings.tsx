@@ -15,7 +15,7 @@ import {
 } from './art-files.ts'
 import {
   clearArtPack, defaultLibraryLabel, deleteLibraryPack, layoutFromPack, listLibraryPacks,
-  loadArtPack, renameLibraryPack, revokeObjectUrls, saveArtPack,
+  loadArtPack, loadLibraryPack, renameLibraryPack, revokeObjectUrls, saveArtPack,
   saveArtPackLayout, saveLibraryPack,
   type ArtPackLayoutInput, type LibraryPack, type StoredArtPack,
 } from './art-idb.ts'
@@ -29,6 +29,16 @@ export type MuyuSettingsProps =
   & PropsLocale<'muyu'>
 
 type ImportStatus = 'idle' | 'ok' | 'fail' | 'missing' | 'empty' | 'tooLarge' | 'notImage'
+
+type ConfirmDialog =
+  | { kind: 'editWorkbench'; packId: string; label: string }
+  | {
+    kind: 'saveLibrary'
+    canReplace: boolean
+    replaceLabel: string
+    mode: 'replace' | 'new'
+    name: string
+  }
 
 const ART_SOURCE_KEYS = [
   ['builtin', 'settings.artSource.builtin'],
@@ -92,10 +102,14 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editLabel, setEditLabel] = useState('')
   const [localMessage, setLocalMessage] = useState('')
+  const [libraryEditId, setLibraryEditId] = useState<string | null>(null)
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
   const skipLocalReload = useRef(false)
   const localPackRef = useRef(localPack)
   localPackRef.current = localPack
   const workbenchRef = useRef<ArtWorkbenchHandle>(null)
+  const libraryEditIdRef = useRef(libraryEditId)
+  libraryEditIdRef.current = libraryEditId
 
   const activeLibraryId = prefs.artSource === 'library' ? prefs.artPackId : ''
 
@@ -220,6 +234,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       const saved = await saveArtPack('local', frozen.files, layout)
       setLocalNames(frozen.names)
       setLocalPack(saved)
+      setLibraryEditId(null)
       bumpRev({ artSource: 'local', artPackId: '' })
       setLocalMissing([])
       setLocalMessage('')
@@ -272,6 +287,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       const saved = await saveArtPack('local', mergedFiles, layout)
       setLocalNames(saved.names)
       setLocalPack(saved)
+      setLibraryEditId(null)
       bumpRev({ artSource: 'local', artPackId: '' })
       setLocalMissing([])
       setLocalMessage('')
@@ -371,10 +387,12 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
         await clearArtPack('local')
         setLocalNames([])
         setLocalPack(null)
+        setLibraryEditId(null)
         bumpRev({
           artSource: prefs.artSource === 'local' ? 'builtin' : prefs.artSource,
           artPackId: prefs.artSource === 'local' ? '' : prefs.artPackId,
         })
+        setLocalMessage('')
         setLocalStatus('idle')
       } catch {
         setLocalStatus('fail')
@@ -382,44 +400,112 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     })()
   }
 
+  const fillTemplate = (template: string, values: Record<string, string>) => (
+    Object.entries(values).reduce(
+      (text, [key, value]) => text.replaceAll(`{${key}}`, value),
+      template,
+    )
+  )
+
   const onSaveLocalToLibrary = () => {
-    const pack = localPackRef.current
-    if (pack === null) return
-    void (async () => {
-      try {
-        const flushed = workbenchRef.current?.flushLayout() ?? null
-        const layout = flushed ?? layoutFromPack(pack)
-        if (layout === null || layout.stage === undefined || layout.fits === undefined) {
-          setLocalMessage(t('settings.artLocal.saveLibraryFail'))
-          setLocalStatus('fail')
-          return
-        }
-        const full = {
-          stage: layout.stage,
-          fits: layout.fits,
-          props: resolvePropsLayout(layout.props),
-        }
-        const baked = await bakeArtPackForShare(pack.files, full)
-        const saved = await saveLibraryPack({
-          label: defaultLibraryLabel('制作'),
-          files: baked.files,
-          layout: baked.layout,
-        })
-        await refreshLibrary()
-        bumpRev({ artSource: 'library', artPackId: saved.id })
-        setLocalMessage(t('settings.artLocal.savedLibrary'))
-        setLocalStatus('ok')
-        setLibraryStatus('ok')
-      } catch {
-        setLocalMessage(t('settings.artLocal.saveLibraryFail'))
-        setLocalStatus('fail')
-        setLibraryStatus('fail')
-      }
-    })()
+    if (localPackRef.current === null) return
+    const existingId = libraryEditIdRef.current
+    const existing = existingId === null
+      ? undefined
+      : library.find(pack => pack.id === existingId)
+    setConfirmDialog({
+      kind: 'saveLibrary',
+      canReplace: existing !== undefined,
+      replaceLabel: existing?.label ?? '',
+      mode: existing !== undefined ? 'replace' : 'new',
+      name: existing?.label ?? defaultLibraryLabel('制作'),
+    })
   }
 
+  /** Switch the overlay to a library pack without touching the workbench. */
   const onUseLibrary = (id: string) => {
     bumpRev({ artSource: 'library', artPackId: id })
+  }
+
+  const loadLibraryIntoWorkbench = async (id: string) => {
+    const pack = await loadLibraryPack(id)
+    if (pack === null) {
+      setLibraryStatus('fail')
+      return
+    }
+    let layout = layoutFromPack(pack)
+    if (layout === null) {
+      const pose = await initPoseLayout(pack.files)
+      layout = {
+        stage: pose.stage,
+        fits: pose.fits,
+        props: resolvePropsLayout(pack.props),
+      }
+    }
+    skipLocalReload.current = true
+    const saved = await saveArtPack('local', pack.files, layout)
+    setLocalPack(saved)
+    setLocalNames(saved.names)
+    setLibraryEditId(id)
+    setLocalMessage('')
+    bumpRev({ artSource: 'library', artPackId: id })
+  }
+
+  const askEditLibrary = (id: string, label: string) => {
+    setConfirmDialog({ kind: 'editWorkbench', packId: id, label })
+  }
+
+  const commitSaveToLibrary = async (replace: boolean, name: string) => {
+    const pack = localPackRef.current
+    if (pack === null) return
+    try {
+      const flushed = workbenchRef.current?.flushLayout() ?? null
+      const layout = flushed ?? layoutFromPack(pack)
+      if (layout === null || layout.stage === undefined || layout.fits === undefined) {
+        setLocalMessage(t('settings.artLocal.saveLibraryFail'))
+        setLocalStatus('fail')
+        return
+      }
+      const full = {
+        stage: layout.stage,
+        fits: layout.fits,
+        props: resolvePropsLayout(layout.props),
+      }
+      const baked = await bakeArtPackForShare(pack.files, full)
+      const existingId = libraryEditIdRef.current
+      const label = name.trim() === '' ? defaultLibraryLabel('制作') : name.trim()
+      const saved = await saveLibraryPack({
+        id: replace && existingId !== null ? existingId : undefined,
+        label,
+        files: baked.files,
+        layout: baked.layout,
+      })
+      setLibraryEditId(saved.id)
+      await refreshLibrary()
+      bumpRev({ artSource: 'library', artPackId: saved.id })
+      setLocalMessage(t('settings.artLocal.savedLibrary'))
+      setLocalStatus('ok')
+      setLibraryStatus('ok')
+    } catch {
+      setLocalMessage(t('settings.artLocal.saveLibraryFail'))
+      setLocalStatus('fail')
+      setLibraryStatus('fail')
+    }
+  }
+
+  const onConfirmDialog = () => {
+    const dialog = confirmDialog
+    if (dialog === null) return
+    if (dialog.kind === 'editWorkbench') {
+      setConfirmDialog(null)
+      void loadLibraryIntoWorkbench(dialog.packId).catch(() => {
+        setLibraryStatus('fail')
+      })
+      return
+    }
+    if (dialog.mode === 'new' && dialog.name.trim() === '') return
+    setConfirmDialog(null)
+    void commitSaveToLibrary(dialog.mode === 'replace', dialog.name)
   }
 
   const onDeleteLibrary = (id: string) => {
@@ -514,9 +600,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
   )
 
   const libraryHint = statusHint(libraryStatus, libraryMissing)
-  const localHint = localMessage !== ''
-    ? localMessage
-    : statusHint(localStatus, localMissing)
+  const localHint = statusHint(localStatus, localMissing)
   const sourceActive = (source: (typeof ART_SOURCE_KEYS)[number][0]) => {
     if (source === 'library') return prefs.artSource === 'library' || prefs.artSource === 'zip'
     return prefs.artSource === source
@@ -636,7 +720,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
                   if (source === 'library') {
                     const id = prefs.artPackId || library[0]?.id || ''
                     if (id === '') return
-                    patch({ artSource: 'library', artPackId: id })
+                    onUseLibrary(id)
                     return
                   }
                   patch({ artSource: source })
@@ -740,6 +824,14 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
                         variant="outline"
                         size="sm"
                         type="button"
+                        onClick={() => { askEditLibrary(pack.id, pack.label) }}
+                      >
+                        {t('settings.artLibrary.edit')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
                         onClick={() => { onDeleteLibrary(pack.id) }}
                       >
                         {t('settings.artLibrary.delete')}
@@ -789,15 +881,6 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
               />
               {t('settings.artLocal.files')}
             </label>
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              disabled={localPack === null}
-              onClick={onSaveLocalToLibrary}
-            >
-              {t('settings.artLocal.saveLibrary')}
-            </Button>
           </div>
           <Button
             variant="outline"
@@ -814,7 +897,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
             ? t('settings.artLocal.empty')
             : `${t('settings.artLocal.loaded')} ${localNames.length} ${t('settings.artLocal.count')}`}
         </p>
-        {localHint !== '' && (
+        {localMessage === '' && localHint !== '' && (
           <p
             className={localStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
             role={localStatus === 'ok' ? 'status' : 'alert'}
@@ -863,6 +946,14 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
             )}
           </div>
         )}
+        {localPack === null && localMessage !== '' && (
+          <p
+            className={localStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
+            role={localStatus === 'ok' ? 'status' : 'alert'}
+          >
+            {localMessage}
+          </p>
+        )}
       </section>
 
       <section className={css.section} aria-label={t('settings.section.artRemote')}>
@@ -909,6 +1000,155 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
         </div>
         <p className={css.hint}>{t('settings.artExport.hint')}</p>
       </section>
+
+      {confirmDialog !== null && (
+        <div
+          className={css.dialogBackdrop}
+          role="presentation"
+          onClick={() => { setConfirmDialog(null) }}
+        >
+          <div
+            className={css.dialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="muyu-confirm-title"
+            onClick={(event) => { event.stopPropagation() }}
+          >
+            {confirmDialog.kind === 'editWorkbench' ? (
+              <>
+                <div className={css.dialogHead}>
+                  <h4 className={css.dialogTitle} id="muyu-confirm-title">
+                    {t('settings.artLibrary.editConfirm.title')}
+                  </h4>
+                  <p className={css.dialogBody}>
+                    {fillTemplate(t('settings.artLibrary.editConfirm.body'), { name: confirmDialog.label })}
+                  </p>
+                </div>
+                <div className={css.dialogContent}>
+                  <p className={css.dialogWarn}>{t('settings.artLibrary.editConfirm.warn')}</p>
+                </div>
+                <div className={css.dialogActions}>
+                  <Button variant="outline" size="sm" type="button" onClick={() => { setConfirmDialog(null) }}>
+                    {t('settings.confirm.cancel')}
+                  </Button>
+                  <Button variant="primary" size="sm" type="button" onClick={onConfirmDialog}>
+                    {t('settings.artLibrary.editConfirm.ok')}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={css.dialogHead}>
+                  <h4 className={css.dialogTitle} id="muyu-confirm-title">
+                    {t('settings.artLocal.saveConfirm.title')}
+                  </h4>
+                  <p className={css.dialogBody}>{t('settings.artLocal.saveConfirm.body')}</p>
+                </div>
+                <div className={css.dialogContent}>
+                  {confirmDialog.canReplace ? (
+                    <div className={css.dialogChoices} role="radiogroup" aria-label={t('settings.artLocal.saveConfirm.title')}>
+                      <label className={confirmDialog.mode === 'replace' ? `${css.dialogChoice} ${css.dialogChoiceOn}` : css.dialogChoice}>
+                        <div className={css.dialogChoiceRow}>
+                          <input
+                            type="radio"
+                            name="muyu-save-mode"
+                            checked={confirmDialog.mode === 'replace'}
+                            onChange={() => {
+                              setConfirmDialog({
+                                ...confirmDialog,
+                                mode: 'replace',
+                                name: confirmDialog.replaceLabel,
+                              })
+                            }}
+                          />
+                          <span className={css.dialogChoiceText}>
+                            <span className={css.dialogChoiceTitle}>{t('settings.artLocal.saveConfirm.replace')}</span>
+                            <span className={css.dialogChoiceHint}>
+                              {fillTemplate(t('settings.artLocal.saveConfirm.replaceHint'), {
+                                name: confirmDialog.replaceLabel,
+                              })}
+                            </span>
+                          </span>
+                        </div>
+                      </label>
+                      <label className={confirmDialog.mode === 'new' ? `${css.dialogChoice} ${css.dialogChoiceOn}` : css.dialogChoice}>
+                        <div className={css.dialogChoiceRow}>
+                          <input
+                            type="radio"
+                            name="muyu-save-mode"
+                            checked={confirmDialog.mode === 'new'}
+                            onChange={() => {
+                              setConfirmDialog({
+                                ...confirmDialog,
+                                mode: 'new',
+                                name: confirmDialog.name.trim() === confirmDialog.replaceLabel
+                                  ? ''
+                                  : confirmDialog.name,
+                              })
+                            }}
+                          />
+                          <span className={css.dialogChoiceText}>
+                            <span className={css.dialogChoiceTitle}>{t('settings.artLocal.saveConfirm.asNew')}</span>
+                            <span className={css.dialogChoiceHint}>{t('settings.artLocal.saveConfirm.asNewHint')}</span>
+                          </span>
+                        </div>
+                        {confirmDialog.mode === 'new' && (
+                          <label className={css.dialogField}>
+                            <span className={css.dialogFieldLabel}>{t('settings.artLocal.saveConfirm.name')}</span>
+                            <input
+                              className={`${css.input} ${css.dialogInput}`}
+                              value={confirmDialog.name}
+                              placeholder={t('settings.artLocal.saveConfirm.namePlaceholder')}
+                              autoFocus
+                              onClick={(event) => { event.stopPropagation() }}
+                              onChange={(event) => {
+                                setConfirmDialog({ ...confirmDialog, name: event.currentTarget.value })
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') onConfirmDialog()
+                              }}
+                            />
+                          </label>
+                        )}
+                      </label>
+                    </div>
+                  ) : (
+                    <label className={css.dialogField}>
+                      <span className={css.dialogFieldLabel}>{t('settings.artLocal.saveConfirm.name')}</span>
+                      <input
+                        className={`${css.input} ${css.dialogInput}`}
+                        value={confirmDialog.name}
+                        placeholder={t('settings.artLocal.saveConfirm.namePlaceholder')}
+                        autoFocus
+                        onChange={(event) => {
+                          setConfirmDialog({ ...confirmDialog, name: event.currentTarget.value })
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') onConfirmDialog()
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                <div className={css.dialogActions}>
+                  <Button variant="outline" size="sm" type="button" onClick={() => { setConfirmDialog(null) }}>
+                    {t('settings.confirm.cancel')}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    type="button"
+                    disabled={confirmDialog.mode === 'new' && confirmDialog.name.trim() === ''}
+                    onClick={onConfirmDialog}
+                  >
+                    {t('settings.artLocal.saveConfirm.ok')}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </form>
   )
 }
