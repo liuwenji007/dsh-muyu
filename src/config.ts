@@ -5,8 +5,8 @@
  */
 import z from 'schemastery'
 
-/** Which sprite set the overlay paints. Local and remote packs are stored apart. */
-export type MuyuArtSource = 'builtin' | 'local' | 'url' | 'zip'
+/** Which sprite set the overlay paints. Library holds multiple imported packs. */
+export type MuyuArtSource = 'builtin' | 'local' | 'url' | 'library' | 'zip'
 
 /** User-facing prefs before schema defaults. */
 export interface MuyuPrefs {
@@ -22,7 +22,8 @@ export interface MuyuPrefs {
   plaque?: 'censer' | 'board'
   /**
    * Active art source. `local` is the working pack (debug / make).
-   * `url` and `zip` are the share/use path and live in the same settings group.
+   * `library` is a saved/imported pack keyed by {@link artPackId}.
+   * `zip` is legacy (migrated into the library).
    */
   artSource?: MuyuArtSource
   /**
@@ -30,7 +31,9 @@ export interface MuyuPrefs {
    * {@link artSource} is `url`.
    */
   artBaseUrl?: string
-  /** Bumped when a local or zip pack is saved or cleared so the overlay reloads. */
+  /** Active library pack id when {@link artSource} is `library`. */
+  artPackId?: string
+  /** Bumped when a local or library pack is saved or cleared so the overlay reloads. */
   artPackRev?: number
 }
 
@@ -43,6 +46,7 @@ export type ResolvedMuyuPrefs = {
   readonly plaque: 'board' | 'censer'
   readonly artSource: MuyuArtSource
   readonly artBaseUrl: string
+  readonly artPackId: string
   readonly artPackRev: number
 }
 
@@ -111,19 +115,23 @@ export const Prefs: z<MuyuPrefs> = z.object({
     .default('censer')
     .description('Merit plaque art: wooden board or incense censer'),
   artSource: z
-    .union(['builtin', 'local', 'url', 'zip'])
+    .union(['builtin', 'local', 'url', 'library', 'zip'])
     .default('builtin')
-    .description('Active art source: packaged, local working pack, remote URL, or imported zip'),
+    .description('Active art source: packaged, local working pack, remote URL, or library pack'),
   artBaseUrl: z
     .string()
     .default('')
     .description('Remote sprite directory URL or .zip URL'),
+  artPackId: z
+    .string()
+    .default('')
+    .description('Library pack id when artSource is library'),
   artPackRev: z
     .number()
     .step(1)
     .min(0)
     .default(0)
-    .description('Local/zip pack generation; overlay reloads when this changes'),
+    .description('Local/library pack generation; overlay reloads when this changes'),
 })
 
 /**
@@ -140,7 +148,12 @@ export const Config = z.object({})
 export function resolveMuyuPrefs(input: MuyuPrefs = {}): ResolvedMuyuPrefs {
   const artSource = input.artSource
     ?? (typeof input.artBaseUrl === 'string' && input.artBaseUrl.trim() !== '' ? 'url' : undefined)
-  return Prefs(artSource === undefined ? input : { ...input, artSource }) as ResolvedMuyuPrefs
+  const raw = Prefs(artSource === undefined ? input : { ...input, artSource }) as ResolvedMuyuPrefs
+  // Legacy `zip` + pack id → library; bare `zip` still loads the migrated slot via library list.
+  if (raw.artSource === 'zip' && raw.artPackId.trim() !== '') {
+    return { ...raw, artSource: 'library' }
+  }
+  return raw
 }
 
 /**
@@ -157,6 +170,7 @@ export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
     plaque: input.plaque,
     artSource: input.artSource,
     artBaseUrl: input.artBaseUrl,
+    artPackId: input.artPackId,
     artPackRev: input.artPackRev,
   })
   return {

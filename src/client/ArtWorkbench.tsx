@@ -2,7 +2,10 @@
  * Local-pack workbench: align poses, then tune hotzone / stick / add / plaque.
  * Commits a full layout (stage + fits + props) so remix packs travel with placement.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import {
+  useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef,
+  type CSSProperties, type PointerEvent,
+} from 'react'
 import clsx from 'clsx'
 import { ART_PACK_POSES, type ArtPackFile } from './art-pack.ts'
 import {
@@ -47,6 +50,11 @@ export type ArtWorkbenchProps = {
   onCommitLayout: (layout: ArtPackLayoutInput) => void
 }
 
+/** Parent can flush the latest in-memory layout before export / library save. */
+export type ArtWorkbenchHandle = {
+  flushLayout: () => ArtPackLayoutInput | null
+}
+
 function poseFilesIn(pack: StoredArtPack): Array<(typeof ART_PACK_POSES)[number]> {
   return ART_PACK_POSES.filter(name => pack.files[name] instanceof Blob)
 }
@@ -77,7 +85,10 @@ function rectStyle(rect: { top: number; left: number; width: number; height: num
  * Pose + prop layout editor for a loaded local pack.
  * @param props - pack, translator, persist callback.
  */
-export function ArtWorkbench({ pack, t, onCommitLayout }: ArtWorkbenchProps) {
+export const ArtWorkbench = forwardRef<ArtWorkbenchHandle, ArtWorkbenchProps>(function ArtWorkbench(
+  { pack, t, onCommitLayout },
+  ref,
+) {
   const poses = useMemo(() => poseFilesIn(pack), [pack.files])
   const [mode, setMode] = useState<WorkMode>('poses')
   const [selected, setSelected] = useState<(typeof ART_PACK_POSES)[number]>('idle.png')
@@ -165,6 +176,20 @@ export function ArtWorkbench({ pack, t, onCommitLayout }: ArtWorkbenchProps) {
       props: propsRef.current,
     })
   }
+
+  useImperativeHandle(ref, () => ({
+    flushLayout: () => {
+      const currentStage = stageHold.current
+      if (currentStage === undefined) return null
+      const layout: ArtPackLayoutInput = {
+        stage: currentStage,
+        fits: fitsRef.current,
+        props: propsRef.current,
+      }
+      onCommitLayout(layout)
+      return layout
+    },
+  }), [onCommitLayout])
 
   const writeFit = (name: ArtPackFile, next: ArtFit) => {
     const merged = { ...fitsRef.current, [name]: next }
@@ -746,4 +771,4 @@ export function ArtWorkbench({ pack, t, onCommitLayout }: ArtWorkbenchProps) {
       )}
     </div>
   )
-}
+})

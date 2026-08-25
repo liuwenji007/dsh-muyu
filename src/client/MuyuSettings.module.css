@@ -282,6 +282,80 @@
   color: var(--dsw-alias-state-error-primary, #dc2626);
 }
 
+.libraryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.libraryItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  border-radius: 10px;
+  background: var(--dsw-alias-bg-layer-1, #fff);
+}
+
+.libraryItemActive {
+  border-color: var(--dsw-alias-brand-primary, #4f6ef7);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 6%, #fff);
+}
+
+.libraryThumb {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
+  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
+}
+
+.libraryThumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.libraryThumbEmpty {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.libraryBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.libraryName {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary, #1f2328);
+  cursor: text;
+}
+
+.libraryName:hover {
+  color: var(--dsw-alias-brand-primary, #4f6ef7);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .input,
   .select,

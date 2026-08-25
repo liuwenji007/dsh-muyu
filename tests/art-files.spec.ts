@@ -52,6 +52,21 @@ describe('collectArtPack', () => {
     }
   })
 
+  it('accepts a partial set when requireComplete is false', () => {
+    const result = collectArtPack([png('idle.png'), png('stick.png')], { requireComplete: false })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.names).toEqual(['idle.png', 'stick.png'])
+      expect(result.files['idle.png']).toBeDefined()
+      expect(result.files['stick.png']).toBeDefined()
+    }
+  })
+
+  it('still rejects an empty pick when requireComplete is false', () => {
+    const result = collectArtPack([png('readme.txt')], { requireComplete: false })
+    expect(result.ok).toBe(false)
+  })
+
   it('marks oversized known files as tooLarge when they leave required gaps', () => {
     const huge = new Blob([new Uint8Array(9 * 1024 * 1024)])
     const result = collectArtPack([

@@ -37,6 +37,7 @@ describe('resolveMuyuConfig', () => {
       plaque: 'censer',
       artSource: 'builtin',
       artBaseUrl: '',
+      artPackId: '',
       artPackRev: 0,
       hasBumpRecover: true,
     })

@@ -6,16 +6,18 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
 import type { PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { downloadBuiltinArtPack, downloadStoredArtPack } from './art-pack.ts'
-import { ArtWorkbench } from './ArtWorkbench.tsx'
-import { initPoseLayout } from './art-fit.ts'
+import { downloadBuiltinArtPack, downloadStoredArtPack, bakeArtPackForShare, isArtPackPose } from './art-pack.ts'
+import { ArtWorkbench, type ArtWorkbenchHandle } from './ArtWorkbench.tsx'
+import { blobSize, containFit, initPoseLayout } from './art-fit.ts'
 import {
   ART_PACK_MAX_ZIP_BYTES, collectArtPackAsync, collectArtPackFromZip, freezeArtBlobs,
   type CollectArtPackResult,
 } from './art-files.ts'
 import {
-  clearArtPack, layoutFromPack, loadArtPack, saveArtPack, saveArtPackLayout,
-  type ArtPackLayoutInput, type StoredArtPack,
+  clearArtPack, defaultLibraryLabel, deleteLibraryPack, layoutFromPack, listLibraryPacks,
+  loadArtPack, renameLibraryPack, revokeObjectUrls, saveArtPack,
+  saveArtPackLayout, saveLibraryPack,
+  type ArtPackLayoutInput, type LibraryPack, type StoredArtPack,
 } from './art-idb.ts'
 import { resolvePropsLayout } from './art-layout.ts'
 import type { createMuyuStore } from './stores.ts'
@@ -31,8 +33,8 @@ type ImportStatus = 'idle' | 'ok' | 'fail' | 'missing' | 'empty' | 'tooLarge' | 
 const ART_SOURCE_KEYS = [
   ['builtin', 'settings.artSource.builtin'],
   ['local', 'settings.artSource.local'],
+  ['library', 'settings.artSource.library'],
   ['url', 'settings.artSource.url'],
-  ['zip', 'settings.artSource.zip'],
 ] as const
 
 /** Copy FileList before clearing the input — the list is live and would go empty. */
@@ -53,6 +55,25 @@ function bindDirectoryInput(el: HTMLInputElement | null): void {
   el.multiple = true
 }
 
+async function buildLayout(
+  files: Parameters<typeof initPoseLayout>[0],
+  imported: Extract<CollectArtPackResult, { ok: true }>['layout'],
+): Promise<ArtPackLayoutInput> {
+  if (imported?.stage !== undefined && imported.fits !== undefined) {
+    return {
+      stage: imported.stage,
+      fits: imported.fits,
+      props: resolvePropsLayout(imported.props),
+    }
+  }
+  const pose = await initPoseLayout(files)
+  return {
+    stage: pose.stage,
+    fits: pose.fits,
+    props: resolvePropsLayout(imported?.props),
+  }
+}
+
 /**
  * Wooden-fish prefs form.
  * @param props - store and locale.
@@ -60,12 +81,23 @@ function bindDirectoryInput(el: HTMLInputElement | null): void {
 export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
   const prefs = useStore(s => s.prefs ?? resolveMuyuPrefs())
   const [exportStatus, setExportStatus] = useState<'idle' | 'done' | 'fail'>('idle')
-  const [importStatus, setImportStatus] = useState<ImportStatus>('idle')
-  const [missingNames, setMissingNames] = useState<string[]>([])
+  const [libraryStatus, setLibraryStatus] = useState<ImportStatus>('idle')
+  const [localStatus, setLocalStatus] = useState<ImportStatus>('idle')
+  const [libraryMissing, setLibraryMissing] = useState<string[]>([])
+  const [localMissing, setLocalMissing] = useState<string[]>([])
   const [localNames, setLocalNames] = useState<string[]>([])
   const [localPack, setLocalPack] = useState<StoredArtPack | null>(null)
-  const [zipNames, setZipNames] = useState<string[]>([])
+  const [library, setLibrary] = useState<LibraryPack[]>([])
+  const [thumbs, setThumbs] = useState<Record<string, string>>({})
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editLabel, setEditLabel] = useState('')
+  const [localMessage, setLocalMessage] = useState('')
   const skipLocalReload = useRef(false)
+  const localPackRef = useRef(localPack)
+  localPackRef.current = localPack
+  const workbenchRef = useRef<ArtWorkbenchHandle>(null)
+
+  const activeLibraryId = prefs.artSource === 'library' ? prefs.artPackId : ''
 
   const patch = (next: MuyuPrefs) => {
     try {
@@ -80,34 +112,57 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     patch({ ...next, artPackRev: prefs.artPackRev + 1 })
   }
 
+  const refreshLibrary = async () => {
+    const packs = await listLibraryPacks()
+    setLibrary(packs)
+    const nextThumbs: Record<string, string> = {}
+    for (const pack of packs) {
+      const idle = pack.files['idle.png']
+      if (idle instanceof Blob) nextThumbs[pack.id] = URL.createObjectURL(idle)
+    }
+    setThumbs((prev) => {
+      revokeObjectUrls(prev)
+      return nextThumbs
+    })
+    return packs
+  }
+
+  useEffect(() => () => { revokeObjectUrls(thumbs) }, [thumbs])
+
   useEffect(() => {
     if (skipLocalReload.current) {
       skipLocalReload.current = false
       return
     }
     let cancelled = false
-    void Promise.all([loadArtPack('local'), loadArtPack('zip')]).then(async ([local, zip]) => {
-      if (cancelled) return
-      let nextLocal = local
-      if (nextLocal !== null && (nextLocal.stage === undefined || nextLocal.fits === undefined)) {
-        const pose = await initPoseLayout(nextLocal.files)
-        nextLocal = await saveArtPackLayout('local', {
-          stage: pose.stage,
-          fits: pose.fits,
-          props: resolvePropsLayout(nextLocal.props),
-        }) ?? { ...nextLocal, ...pose, props: resolvePropsLayout(nextLocal.props) }
+    void (async () => {
+      try {
+        const [local, packs] = await Promise.all([loadArtPack('local'), refreshLibrary()])
+        if (cancelled) return
+        let nextLocal = local
+        if (nextLocal !== null && (nextLocal.stage === undefined || nextLocal.fits === undefined)) {
+          const pose = await initPoseLayout(nextLocal.files)
+          nextLocal = await saveArtPackLayout('local', {
+            stage: pose.stage,
+            fits: pose.fits,
+            props: resolvePropsLayout(nextLocal.props),
+          }) ?? { ...nextLocal, ...pose, props: resolvePropsLayout(nextLocal.props) }
+        }
+        if (cancelled) return
+        setLocalPack(nextLocal)
+        setLocalNames(nextLocal?.names ?? [])
+        // Legacy zip-only prefs → first library pack after migrate.
+        if ((prefs.artSource === 'zip' || prefs.artSource === 'library') && prefs.artPackId === '' && packs[0] !== undefined) {
+          bumpRev({ artSource: 'library', artPackId: packs[0].id })
+        }
+      } catch {
+        if (!cancelled) {
+          setLocalPack(null)
+          setLocalNames([])
+          setLibrary([])
+        }
       }
-      if (cancelled) return
-      setLocalPack(nextLocal)
-      setLocalNames(nextLocal?.names ?? [])
-      setZipNames(zip?.names ?? [])
-    }).catch(() => {
-      if (!cancelled) {
-        setLocalPack(null)
-        setLocalNames([])
-        setZipNames([])
-      }
-    })
+    })()
     return () => { cancelled = true }
   }, [prefs.artPackRev])
 
@@ -128,89 +183,185 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     }
   }
 
-  const rejectCollected = (collected: Extract<CollectArtPackResult, { ok: false }>) => {
-    setMissingNames(collected.missingRequired)
-    setImportStatus(
+  const rejectLibrary = (collected: Extract<CollectArtPackResult, { ok: false }>) => {
+    setLibraryMissing(collected.missingRequired)
+    setLibraryStatus(
       collected.reason === 'tooLarge' ? 'tooLarge'
         : collected.reason === 'notImage' ? 'notImage'
-          : 'missing',
+          : collected.names.length === 0 ? 'empty'
+            : 'missing',
     )
   }
 
-  const applyCollected = async (
-    slot: 'local' | 'zip',
-    collected: CollectArtPackResult,
-  ) => {
+  const rejectLocal = (collected: Extract<CollectArtPackResult, { ok: false }>) => {
+    setLocalMissing(collected.missingRequired)
+    setLocalMessage('')
+    setLocalStatus(
+      collected.reason === 'tooLarge' ? 'tooLarge'
+        : collected.reason === 'notImage' ? 'notImage'
+          : collected.names.length === 0 ? 'empty'
+            : 'missing',
+    )
+  }
+
+  const applyToLocal = async (collected: CollectArtPackResult) => {
     if (!collected.ok) {
-      rejectCollected(collected)
+      rejectLocal(collected)
       return
     }
     try {
       const frozen = await freezeArtBlobs(collected.files)
       if (!frozen.ok) {
-        rejectCollected(frozen)
+        rejectLocal(frozen)
         return
       }
-      const imported = collected.layout
-      let layout: ArtPackLayoutInput | undefined
-      if (imported?.stage !== undefined && imported.fits !== undefined) {
-        layout = {
-          stage: imported.stage,
-          fits: imported.fits,
-          props: resolvePropsLayout(imported.props),
-        }
-      } else {
-        const pose = await initPoseLayout(frozen.files)
-        layout = {
-          stage: pose.stage,
-          fits: pose.fits,
-          props: resolvePropsLayout(imported?.props),
-        }
-      }
-      const saved = await saveArtPack(slot, frozen.files, layout)
-      if (slot === 'local') {
-        setLocalNames(frozen.names)
-        setLocalPack(saved)
-      }
-      else setZipNames(frozen.names)
-      bumpRev({ artSource: slot })
-      setMissingNames([])
-      setImportStatus('ok')
+      const layout = await buildLayout(frozen.files, collected.layout)
+      skipLocalReload.current = true
+      const saved = await saveArtPack('local', frozen.files, layout)
+      setLocalNames(frozen.names)
+      setLocalPack(saved)
+      bumpRev({ artSource: 'local', artPackId: '' })
+      setLocalMissing([])
+      setLocalMessage('')
+      setLocalStatus('ok')
     } catch {
-      setImportStatus('fail')
+      setLocalMessage('')
+      setLocalStatus('fail')
     }
   }
 
-  const onLocalChange = (event: { currentTarget: HTMLInputElement }) => {
+  /** Patch known filenames into the workshop slot (same basename replaces). */
+  const mergeIntoLocal = async (collected: CollectArtPackResult) => {
+    if (!collected.ok) {
+      rejectLocal(collected)
+      return
+    }
+    try {
+      const frozen = await freezeArtBlobs(collected.files, { requireComplete: false })
+      if (!frozen.ok) {
+        rejectLocal(frozen)
+        return
+      }
+      const base = localPackRef.current
+      const mergedFiles = { ...(base?.files ?? {}), ...frozen.files }
+      let layout: ArtPackLayoutInput
+      if (collected.layout?.stage !== undefined && collected.layout.fits !== undefined) {
+        layout = {
+          stage: collected.layout.stage,
+          fits: collected.layout.fits,
+          props: resolvePropsLayout(collected.layout.props ?? base?.props),
+        }
+      } else if (base?.stage !== undefined && base.fits !== undefined) {
+        const fits = { ...base.fits }
+        for (const name of frozen.names) {
+          if (!isArtPackPose(name)) continue
+          const blob = mergedFiles[name]
+          if (!(blob instanceof Blob)) continue
+          const size = await blobSize(blob)
+          fits[name] = containFit(size.width, size.height, base.stage)
+        }
+        layout = {
+          stage: base.stage,
+          fits,
+          props: resolvePropsLayout(base.props),
+        }
+      } else {
+        layout = await buildLayout(mergedFiles, collected.layout)
+      }
+      skipLocalReload.current = true
+      const saved = await saveArtPack('local', mergedFiles, layout)
+      setLocalNames(saved.names)
+      setLocalPack(saved)
+      bumpRev({ artSource: 'local', artPackId: '' })
+      setLocalMissing([])
+      setLocalMessage('')
+      setLocalStatus('ok')
+    } catch {
+      setLocalMessage('')
+      setLocalStatus('fail')
+    }
+  }
+
+  const applyToLibrary = async (collected: CollectArtPackResult, labelHint?: string) => {
+    if (!collected.ok) {
+      rejectLibrary(collected)
+      return
+    }
+    try {
+      const frozen = await freezeArtBlobs(collected.files)
+      if (!frozen.ok) {
+        rejectLibrary(frozen)
+        return
+      }
+      const layout = await buildLayout(frozen.files, collected.layout)
+      const saved = await saveLibraryPack({
+        label: defaultLibraryLabel(labelHint),
+        files: frozen.files,
+        layout,
+      })
+      await refreshLibrary()
+      bumpRev({ artSource: 'library', artPackId: saved.id })
+      setLibraryMissing([])
+      setLibraryStatus('ok')
+    } catch {
+      setLibraryStatus('fail')
+    }
+  }
+
+  const onLocalFolder = (event: { currentTarget: HTMLInputElement }) => {
     const picked = snapshotFiles(event.currentTarget.files)
     event.currentTarget.value = ''
     if (picked.length === 0) {
-      setImportStatus('empty')
+      setLocalStatus('empty')
       return
     }
     void (async () => {
-      await applyCollected('local', await collectArtPackAsync(filesFromPicked(picked)))
+      await applyToLocal(await collectArtPackAsync(filesFromPicked(picked)))
     })()
   }
 
-  const onZipChange = (event: { currentTarget: HTMLInputElement }) => {
+  const onLocalFiles = (event: { currentTarget: HTMLInputElement }) => {
+    const picked = snapshotFiles(event.currentTarget.files)
+    event.currentTarget.value = ''
+    if (picked.length === 0) {
+      setLocalStatus('empty')
+      return
+    }
+    void (async () => {
+      await mergeIntoLocal(await collectArtPackAsync(filesFromPicked(picked), { requireComplete: false }))
+    })()
+  }
+
+  const onLibraryZip = (event: { currentTarget: HTMLInputElement }) => {
     const file = snapshotFiles(event.currentTarget.files)[0]
     event.currentTarget.value = ''
     if (file === undefined) {
-      setImportStatus('empty')
+      setLibraryStatus('empty')
       return
     }
     if (file.size > ART_PACK_MAX_ZIP_BYTES) {
-      setImportStatus('tooLarge')
+      setLibraryStatus('tooLarge')
       return
     }
     void (async () => {
       try {
         const bytes = new Uint8Array(await file.arrayBuffer())
-        await applyCollected('zip', await collectArtPackFromZip(bytes))
+        await applyToLibrary(await collectArtPackFromZip(bytes), file.name)
       } catch {
-        setImportStatus('fail')
+        setLibraryStatus('fail')
       }
+    })()
+  }
+
+  const onLibraryFolder = (event: { currentTarget: HTMLInputElement }) => {
+    const picked = snapshotFiles(event.currentTarget.files)
+    event.currentTarget.value = ''
+    if (picked.length === 0) {
+      setLibraryStatus('empty')
+      return
+    }
+    void (async () => {
+      await applyToLibrary(await collectArtPackAsync(filesFromPicked(picked)))
     })()
   }
 
@@ -220,23 +371,85 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
         await clearArtPack('local')
         setLocalNames([])
         setLocalPack(null)
-        bumpRev({ artSource: prefs.artSource === 'local' ? 'builtin' : prefs.artSource })
-        setImportStatus('idle')
+        bumpRev({
+          artSource: prefs.artSource === 'local' ? 'builtin' : prefs.artSource,
+          artPackId: prefs.artSource === 'local' ? '' : prefs.artPackId,
+        })
+        setLocalStatus('idle')
       } catch {
-        setImportStatus('fail')
+        setLocalStatus('fail')
       }
     })()
   }
 
-  const onClearZip = () => {
+  const onSaveLocalToLibrary = () => {
+    const pack = localPackRef.current
+    if (pack === null) return
     void (async () => {
       try {
-        await clearArtPack('zip')
-        setZipNames([])
-        bumpRev({ artSource: prefs.artSource === 'zip' ? 'builtin' : prefs.artSource })
-        setImportStatus('idle')
+        const flushed = workbenchRef.current?.flushLayout() ?? null
+        const layout = flushed ?? layoutFromPack(pack)
+        if (layout === null || layout.stage === undefined || layout.fits === undefined) {
+          setLocalMessage(t('settings.artLocal.saveLibraryFail'))
+          setLocalStatus('fail')
+          return
+        }
+        const full = {
+          stage: layout.stage,
+          fits: layout.fits,
+          props: resolvePropsLayout(layout.props),
+        }
+        const baked = await bakeArtPackForShare(pack.files, full)
+        const saved = await saveLibraryPack({
+          label: defaultLibraryLabel('制作'),
+          files: baked.files,
+          layout: baked.layout,
+        })
+        await refreshLibrary()
+        bumpRev({ artSource: 'library', artPackId: saved.id })
+        setLocalMessage(t('settings.artLocal.savedLibrary'))
+        setLocalStatus('ok')
+        setLibraryStatus('ok')
       } catch {
-        setImportStatus('fail')
+        setLocalMessage(t('settings.artLocal.saveLibraryFail'))
+        setLocalStatus('fail')
+        setLibraryStatus('fail')
+      }
+    })()
+  }
+
+  const onUseLibrary = (id: string) => {
+    bumpRev({ artSource: 'library', artPackId: id })
+  }
+
+  const onDeleteLibrary = (id: string) => {
+    void (async () => {
+      try {
+        await deleteLibraryPack(id)
+        const packs = await refreshLibrary()
+        if (activeLibraryId === id) {
+          const next = packs[0]
+          bumpRev(next === undefined
+            ? { artSource: 'builtin', artPackId: '' }
+            : { artSource: 'library', artPackId: next.id })
+        } else {
+          bumpRev({})
+        }
+      } catch {
+        setLibraryStatus('fail')
+      }
+    })()
+  }
+
+  const onRenameCommit = (id: string) => {
+    void (async () => {
+      try {
+        await renameLibraryPack(id, editLabel)
+        setEditingId(null)
+        await refreshLibrary()
+        bumpRev({})
+      } catch {
+        setLibraryStatus('fail')
       }
     })()
   }
@@ -253,38 +466,61 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       bumpRev({})
     }).catch(() => {
       skipLocalReload.current = false
-      setImportStatus('fail')
+      setLocalStatus('fail')
     })
   }
 
   const onExportLocal = () => {
-    if (localPack === null) return
-    const layout = layoutFromPack(localPack)
-    if (layout === null) {
+    const pack = localPackRef.current
+    if (pack === null) return
+    const flushed = workbenchRef.current?.flushLayout() ?? null
+    const layout = flushed ?? layoutFromPack(pack)
+    if (layout === null || layout.stage === undefined || layout.fits === undefined) {
       setExportStatus('fail')
       return
     }
     setExportStatus('idle')
-    void downloadStoredArtPack(localPack.files, layout).then(() => {
+    void downloadStoredArtPack(pack.files, {
+      stage: layout.stage,
+      fits: layout.fits,
+      props: resolvePropsLayout(layout.props),
+    }).then(() => {
       setExportStatus('done')
     }).catch(() => {
       setExportStatus('fail')
     })
   }
 
-  const importHint = importStatus === 'ok'
-    ? t('settings.artImport.ok')
-    : importStatus === 'fail'
-      ? t('settings.artImport.fail')
-      : importStatus === 'tooLarge'
-        ? t('settings.artImport.tooLarge')
-        : importStatus === 'notImage'
-          ? t('settings.artImport.notImage')
-          : importStatus === 'missing'
-            ? `${t('settings.artImport.missing')} ${missingNames.join(', ')}`
-            : importStatus === 'empty'
-              ? t('settings.artImport.empty')
-              : ''
+  useEffect(() => {
+    if (exportStatus !== 'done') return
+    const timer = window.setTimeout(() => { setExportStatus('idle') }, 2500)
+    return () => { window.clearTimeout(timer) }
+  }, [exportStatus])
+
+  const statusHint = (status: ImportStatus, missing: string[]) => (
+    status === 'ok'
+      ? t('settings.artImport.ok')
+      : status === 'fail'
+        ? t('settings.artImport.fail')
+        : status === 'tooLarge'
+          ? t('settings.artImport.tooLarge')
+          : status === 'notImage'
+            ? t('settings.artImport.notImage')
+            : status === 'missing'
+              ? `${t('settings.artImport.missing')} ${missing.join(', ')}`
+              : status === 'empty'
+                ? t('settings.artImport.empty')
+                : ''
+  )
+
+  const libraryHint = statusHint(libraryStatus, libraryMissing)
+  const localHint = localMessage !== ''
+    ? localMessage
+    : statusHint(localStatus, localMissing)
+  const sourceActive = (source: (typeof ART_SOURCE_KEYS)[number][0]) => {
+    if (source === 'library') return prefs.artSource === 'library' || prefs.artSource === 'zip'
+    return prefs.artSource === source
+  }
 
   return (
     <form className={css.page} onSubmit={(event) => { event.preventDefault() }}>
@@ -393,16 +629,136 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
               <button
                 key={source}
                 type="button"
-                className={prefs.artSource === source ? `${css.segBtn} ${css.segOn}` : css.segBtn}
+                className={sourceActive(source) ? `${css.segBtn} ${css.segOn}` : css.segBtn}
                 role="radio"
-                aria-checked={prefs.artSource === source}
-                onClick={() => { patch({ artSource: source }) }}
+                aria-checked={sourceActive(source)}
+                onClick={() => {
+                  if (source === 'library') {
+                    const id = prefs.artPackId || library[0]?.id || ''
+                    if (id === '') return
+                    patch({ artSource: 'library', artPackId: id })
+                    return
+                  }
+                  patch({ artSource: source })
+                }}
               >
                 {t(key)}
               </button>
             ))}
           </div>
         </fieldset>
+      </section>
+
+      <section className={css.section} aria-label={t('settings.section.artLibrary')}>
+        <div className={css.sectionHead}>
+          <h3 className={css.sectionTitle}>{t('settings.section.artLibrary')}</h3>
+          <p className={css.sectionHint}>{t('settings.artLibrary.hint')}</p>
+        </div>
+
+        <div className={css.toolbar}>
+          <div className={css.actions}>
+            <label className={css.fileButton}>
+              <input
+                className={css.fileInput}
+                type="file"
+                accept=".zip,application/zip"
+                onChange={onLibraryZip}
+              />
+              {t('settings.artLibrary.importZip')}
+            </label>
+            <label className={css.fileButton}>
+              <input
+                className={css.fileInput}
+                type="file"
+                multiple
+                ref={bindDirectoryInput}
+                onChange={onLibraryFolder}
+              />
+              {t('settings.artLibrary.importFolder')}
+            </label>
+          </div>
+        </div>
+
+        {library.length === 0 ? (
+          <p className={css.meta}>{t('settings.artLibrary.empty')}</p>
+        ) : (
+          <ul className={css.libraryList}>
+            {library.map((pack) => {
+              const active = activeLibraryId === pack.id
+              return (
+                <li key={pack.id} className={active ? `${css.libraryItem} ${css.libraryItemActive}` : css.libraryItem}>
+                  <div className={css.libraryThumb}>
+                    {thumbs[pack.id] !== undefined ? (
+                      <img src={thumbs[pack.id]} alt="" draggable={false} />
+                    ) : (
+                      <span className={css.libraryThumbEmpty} />
+                    )}
+                  </div>
+                  <div className={css.libraryBody}>
+                    {editingId === pack.id ? (
+                      <input
+                        className={css.input}
+                        value={editLabel}
+                        autoFocus
+                        onChange={(event) => { setEditLabel(event.currentTarget.value) }}
+                        onBlur={() => { onRenameCommit(pack.id) }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') onRenameCommit(pack.id)
+                          if (event.key === 'Escape') setEditingId(null)
+                        }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className={css.libraryName}
+                        onClick={() => {
+                          setEditingId(pack.id)
+                          setEditLabel(pack.label)
+                        }}
+                        title={t('settings.artLibrary.rename')}
+                      >
+                        {pack.label}
+                        {active ? ` · ${t('settings.artLibrary.active')}` : ''}
+                      </button>
+                    )}
+                    <p className={css.meta}>
+                      {pack.names.length} {t('settings.artLibrary.files')}
+                      {' · '}
+                      {new Date(pack.savedAt).toLocaleString()}
+                    </p>
+                    <div className={css.actions}>
+                      <Button
+                        variant={active ? 'primary' : 'outline'}
+                        size="sm"
+                        type="button"
+                        disabled={active}
+                        onClick={() => { onUseLibrary(pack.id) }}
+                      >
+                        {active ? t('settings.artLibrary.using') : t('settings.artLibrary.use')}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => { onDeleteLibrary(pack.id) }}
+                      >
+                        {t('settings.artLibrary.delete')}
+                      </Button>
+                    </div>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {libraryHint !== '' && (
+          <p
+            className={libraryStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
+            role={libraryStatus === 'ok' ? 'status' : 'alert'}
+          >
+            {libraryHint}
+          </p>
+        )}
       </section>
 
       <section className={css.section} aria-label={t('settings.section.artLocal')}>
@@ -419,7 +775,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
                 type="file"
                 multiple
                 ref={bindDirectoryInput}
-                onChange={onLocalChange}
+                onChange={onLocalFolder}
               />
               {t('settings.artLocal.folder')}
             </label>
@@ -429,10 +785,19 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
                 type="file"
                 accept=".png,image/png"
                 multiple
-                onChange={onLocalChange}
+                onChange={onLocalFiles}
               />
               {t('settings.artLocal.files')}
             </label>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={localPack === null}
+              onClick={onSaveLocalToLibrary}
+            >
+              {t('settings.artLocal.saveLibrary')}
+            </Button>
           </div>
           <Button
             variant="outline"
@@ -449,29 +814,47 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
             ? t('settings.artLocal.empty')
             : `${t('settings.artLocal.loaded')} ${localNames.length} ${t('settings.artLocal.count')}`}
         </p>
-        {importHint !== '' && (
+        {localHint !== '' && (
           <p
-            className={importStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
-            role={importStatus === 'ok' ? 'status' : 'alert'}
+            className={localStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
+            role={localStatus === 'ok' ? 'status' : 'alert'}
           >
-            {importHint}
+            {localHint}
           </p>
         )}
         {localPack !== null && localPack.stage !== undefined && (
           <div className={css.panel}>
             <h4 className={css.panelTitle}>{t('settings.artFit.title')}</h4>
-            <ArtWorkbench pack={localPack} t={t} onCommitLayout={onCommitLayout} />
+            <ArtWorkbench ref={workbenchRef} pack={localPack} t={t} onCommitLayout={onCommitLayout} />
             <div className={css.toolbar}>
               <p className={css.hint}>{t('settings.artExport.localHint')}</p>
-              <Button
-                variant="primary"
-                size="sm"
-                type="button"
-                onClick={onExportLocal}
-              >
-                {t('settings.artExport.local')}
-              </Button>
+              <div className={css.actions}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={onSaveLocalToLibrary}
+                >
+                  {t('settings.artLocal.saveLibrary')}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  type="button"
+                  onClick={onExportLocal}
+                >
+                  {t('settings.artExport.local')}
+                </Button>
+              </div>
             </div>
+            {localMessage !== '' && (
+              <p
+                className={localStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
+                role={localStatus === 'ok' ? 'status' : 'alert'}
+              >
+                {localMessage}
+              </p>
+            )}
             {exportStatus === 'done' && (
               <p className={`${css.status} ${css.statusOk}`} role="status">{t('settings.artExport.done')}</p>
             )}
@@ -519,44 +902,12 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
 
         <div className={css.toolbar}>
           <div className={css.actions}>
-            <label className={css.fileButton}>
-              <input
-                className={css.fileInput}
-                type="file"
-                accept=".zip,application/zip"
-                onChange={onZipChange}
-              />
-              {t('settings.artZip')}
-            </label>
             <Button variant="outline" size="sm" type="button" onClick={onExport}>
               {t('settings.artExport')}
             </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            disabled={zipNames.length === 0}
-            onClick={onClearZip}
-          >
-            {t('settings.artZip.clear')}
-          </Button>
         </div>
-        <p className={css.hint}>{t('settings.artZip.hint')}</p>
-        <p className={css.meta}>
-          {zipNames.length === 0
-            ? t('settings.artZip.empty')
-            : `${t('settings.artZip.loaded')} ${zipNames.length} ${t('settings.artLocal.count')}`}
-        </p>
         <p className={css.hint}>{t('settings.artExport.hint')}</p>
-        {importHint !== '' && (
-          <p
-            className={importStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
-            role={importStatus === 'ok' ? 'status' : 'alert'}
-          >
-            {importHint}
-          </p>
-        )}
       </section>
     </form>
   )

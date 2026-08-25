@@ -1,6 +1,6 @@
 /**
- * Persist local (make/debug) and zip (share/use) art packs in IndexedDB.
- * Two slots so importing a zip never overwrites the working folder pack.
+ * Persist local working pack + a multi-entry art library in IndexedDB.
+ * Library holds imported / saved packs so users can switch without overwriting.
  */
 import { isArtPackPose, type ArtPackFile } from './art-pack.ts'
 import { rasterizeFit, type ArtFit, type ArtStage } from './art-fit.ts'
@@ -9,22 +9,26 @@ import {
 } from './art-layout.ts'
 
 const DB_NAME = 'dsh.muyu.art'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE = 'packs'
+const LIBRARY = 'library'
 
-/** IndexedDB keys. `local` is the working pack; `zip` is an imported/shared pack. */
+/** IndexedDB keys in the packs store. `local` is the working pack; `zip` is legacy. */
 export type ArtPackSlot = 'local' | 'zip'
 
 export type StoredArtPack = {
   files: Partial<Record<ArtPackFile, Blob>>
   names: ArtPackFile[]
   savedAt: number
-  /** Shared crop window for character poses; missing on packs imported before the workbench. */
   stage?: ArtStage
-  /** Pan/zoom per pose, in {@link stage} pixel space. */
   fits?: Partial<Record<ArtPackFile, ArtFit>>
-  /** Hotzone / stick / add / plaque placement; missing packs use defaults. */
   props?: ArtPropsLayout
+}
+
+/** One named pack in the switchable library. */
+export type LibraryPack = StoredArtPack & {
+  id: string
+  label: string
 }
 
 /** Layout payload written with pose PNGs. */
@@ -48,6 +52,7 @@ function openDb(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE)
+      if (!db.objectStoreNames.contains(LIBRARY)) db.createObjectStore(LIBRARY, { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error ?? new Error('IndexedDB open failed'))
@@ -59,6 +64,13 @@ function requestToPromise<T>(req: IDBRequest<T>): Promise<T> {
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error ?? new Error('IndexedDB request failed'))
   })
+}
+
+function newPackId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `pack-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 /**
@@ -75,7 +87,7 @@ export function normalizeStoredPack(record: StoredArtPack): StoredArtPack {
 
 /**
  * Build a serializable layout from a stored pack (for export).
- * @param pack - local or zip pack with layout.
+ * @param pack - local or library pack with layout.
  */
 export function layoutFromPack(pack: StoredArtPack): ArtPackLayout | null {
   if (pack.stage === undefined || pack.fits === undefined) return null
@@ -87,8 +99,8 @@ export function layoutFromPack(pack: StoredArtPack): ArtPackLayout | null {
 }
 
 /**
- * Write a pack into one slot.
- * @param slot - local working pack or imported zip.
+ * Write a pack into one slot (local working pack or legacy zip).
+ * @param slot - local or zip.
  * @param files - validated art blobs.
  */
 export async function saveArtPack(
@@ -185,6 +197,163 @@ export async function clearArtPack(slot: ArtPackSlot): Promise<void> {
   }
 }
 
+function asLibraryPack(value: unknown): LibraryPack | null {
+  if (value === null || typeof value !== 'object') return null
+  const record = value as LibraryPack
+  if (typeof record.id !== 'string' || record.id === '') return null
+  if (typeof record.label !== 'string') return null
+  if (record.files === undefined || typeof record.files !== 'object') return null
+  const names = Array.isArray(record.names)
+    ? record.names
+    : (Object.keys(record.files) as ArtPackFile[])
+  return {
+    ...normalizeStoredPack({
+      files: record.files,
+      names,
+      savedAt: typeof record.savedAt === 'number' ? record.savedAt : Date.now(),
+      stage: record.stage,
+      fits: record.fits,
+      props: record.props,
+    }),
+    id: record.id,
+    label: record.label.trim() === '' ? record.id : record.label.trim(),
+  }
+}
+
+/**
+ * Move the legacy single `zip` slot into the library once (if present).
+ * @returns the new library id, or null when nothing to migrate.
+ */
+export async function migrateLegacyZipSlot(): Promise<string | null> {
+  const zip = await loadArtPack('zip')
+  if (zip === null) return null
+  const saved = await saveLibraryPack({
+    label: '已导入 zip',
+    files: zip.files,
+    layout: zip.stage !== undefined && zip.fits !== undefined
+      ? { stage: zip.stage, fits: zip.fits, props: zip.props }
+      : undefined,
+  })
+  await clearArtPack('zip')
+  return saved.id
+}
+
+/**
+ * List library packs, newest first. Migrates the legacy zip slot first.
+ */
+export async function listLibraryPacks(): Promise<LibraryPack[]> {
+  if (idbFactory() === undefined) return []
+  await migrateLegacyZipSlot()
+  const db = await openDb()
+  try {
+    if (!db.objectStoreNames.contains(LIBRARY)) return []
+    const tx = db.transaction(LIBRARY, 'readonly')
+    const rows = await requestToPromise(tx.objectStore(LIBRARY).getAll())
+    const packs = (rows as unknown[])
+      .map(asLibraryPack)
+      .filter((row): row is LibraryPack => row !== null)
+    packs.sort((a, b) => b.savedAt - a.savedAt)
+    return packs
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Load one library pack by id.
+ * @param id - library key.
+ */
+export async function loadLibraryPack(id: string): Promise<LibraryPack | null> {
+  if (idbFactory() === undefined || id.trim() === '') return null
+  await migrateLegacyZipSlot()
+  const db = await openDb()
+  try {
+    if (!db.objectStoreNames.contains(LIBRARY)) return null
+    const tx = db.transaction(LIBRARY, 'readonly')
+    return asLibraryPack(await requestToPromise(tx.objectStore(LIBRARY).get(id)))
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Insert or replace a library pack.
+ * @param input - label, files, optional layout and id (omit id to create).
+ */
+export async function saveLibraryPack(input: {
+  id?: string
+  label: string
+  files: Partial<Record<ArtPackFile, Blob>>
+  layout?: ArtPackLayoutInput
+}): Promise<LibraryPack> {
+  const id = input.id?.trim() || newPackId()
+  const names = Object.keys(input.files) as ArtPackFile[]
+  const record: LibraryPack = {
+    id,
+    label: input.label.trim() === '' ? `图包 ${new Date().toLocaleString()}` : input.label.trim(),
+    files: input.files,
+    names,
+    savedAt: Date.now(),
+    stage: input.layout?.stage,
+    fits: input.layout?.fits,
+    props: input.layout?.props !== undefined
+      ? resolvePropsLayout(input.layout.props)
+      : undefined,
+  }
+  const db = await openDb()
+  try {
+    const tx = db.transaction(LIBRARY, 'readwrite')
+    tx.objectStore(LIBRARY).put(record)
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('IndexedDB library write failed'))
+      tx.onabort = () => reject(tx.error ?? new Error('IndexedDB library write aborted'))
+    })
+  } finally {
+    db.close()
+  }
+  return { ...normalizeStoredPack(record), id: record.id, label: record.label }
+}
+
+/**
+ * Rename a library pack without touching blobs.
+ * @param id - library key.
+ * @param label - new display name.
+ */
+export async function renameLibraryPack(id: string, label: string): Promise<LibraryPack | null> {
+  const current = await loadLibraryPack(id)
+  if (current === null) return null
+  return await saveLibraryPack({
+    id: current.id,
+    label,
+    files: current.files,
+    layout: current.stage !== undefined && current.fits !== undefined
+      ? { stage: current.stage, fits: current.fits, props: current.props }
+      : undefined,
+  })
+}
+
+/**
+ * Delete one library pack.
+ * @param id - library key.
+ */
+export async function deleteLibraryPack(id: string): Promise<void> {
+  if (idbFactory() === undefined || id.trim() === '') return
+  const db = await openDb()
+  try {
+    if (!db.objectStoreNames.contains(LIBRARY)) return
+    const tx = db.transaction(LIBRARY, 'readwrite')
+    tx.objectStore(LIBRARY).delete(id)
+    await new Promise<void>((resolve, reject) => {
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error ?? new Error('IndexedDB library delete failed'))
+      tx.onabort = () => reject(tx.error ?? new Error('IndexedDB library delete aborted'))
+    })
+  } finally {
+    db.close()
+  }
+}
+
 /**
  * Turn stored blobs into object URLs without cropping. Caller must revoke.
  * @param files - pack blobs.
@@ -237,4 +406,14 @@ export function revokeObjectUrls(urls: Partial<Record<string, string>> | null | 
   for (const href of Object.values(urls)) {
     if (typeof href === 'string' && href.startsWith('blob:')) URL.revokeObjectURL(href)
   }
+}
+
+/**
+ * Default label for a freshly imported pack.
+ * @param hint - optional zip / folder name.
+ */
+export function defaultLibraryLabel(hint?: string): string {
+  const base = hint?.trim().replace(/\.(zip|png)$/i, '') ?? ''
+  const stamp = new Date().toLocaleString()
+  return base !== '' ? base : `导入 ${stamp}`
 }

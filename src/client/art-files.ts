@@ -86,14 +86,26 @@ function fail(
   return { ok: false, reason, missingRequired, names }
 }
 
+export type CollectArtPackOptions = {
+  /**
+   * When true (default), every required sprite must be present.
+   * When false, any non-empty set of known filenames is accepted (workshop patch).
+   */
+  requireComplete?: boolean
+}
+
 /**
- * Keep known art filenames from a file list. Required names must all be present.
+ * Keep known art filenames from a file list.
+ * By default required names must all be present; pass `{ requireComplete: false }` to patch.
  * Also picks up optional `layout.json` (async companion: {@link collectArtPackAsync}).
  * @param inputs - zip entries or `<input type="file">` items.
+ * @param options - completeness gate.
  */
 export function collectArtPack(
   inputs: ReadonlyArray<{ name: string; blob: Blob }>,
+  options?: CollectArtPackOptions,
 ): CollectArtPackResult {
+  const requireComplete = options?.requireComplete !== false
   const files: Partial<Record<ArtPackFile, Blob>> = {}
   const names: ArtPackFile[] = []
   let sawTooLarge = false
@@ -109,6 +121,12 @@ export function collectArtPack(
     files[key] = input.blob
     if (!names.includes(key)) names.push(key)
   }
+  if (!requireComplete) {
+    if (names.length === 0) {
+      return fail(sawTooLarge ? 'tooLarge' : 'missing', [...ART_PACK_REQUIRED], names)
+    }
+    return { ok: true, files, names }
+  }
   const missingRequired = ART_PACK_REQUIRED.filter(name => files[name] === undefined)
   if (missingRequired.length > 0) {
     return fail(sawTooLarge ? 'tooLarge' : 'missing', missingRequired, names)
@@ -119,9 +137,11 @@ export function collectArtPack(
 /**
  * Like {@link collectArtPack}, but also parses `layout.json` when present.
  * @param inputs - zip entries or file picker items.
+ * @param options - completeness gate (same as {@link collectArtPack}).
  */
 export async function collectArtPackAsync(
   inputs: ReadonlyArray<{ name: string; blob: Blob }>,
+  options?: CollectArtPackOptions,
 ): Promise<CollectArtPackResult> {
   let layoutBlob: Blob | undefined
   const images: Array<{ name: string; blob: Blob }> = []
@@ -134,7 +154,7 @@ export async function collectArtPackAsync(
     }
     images.push(input)
   }
-  const collected = collectArtPack(images)
+  const collected = collectArtPack(images, options)
   if (!collected.ok) return collected
   if (layoutBlob === undefined) return collected
   const layout = await readLayoutBlob(layoutBlob)
@@ -150,10 +170,13 @@ function bytesToPngBlob(data: Uint8Array): Blob {
  * Copy picker/zip blobs into independent PNG Blobs and verify they decode
  * within the pixel cap. Chrome can drop directory-picker File handles after restart.
  * @param files - collected pack blobs (may still be live File handles).
+ * @param options - completeness gate; false keeps a partial set for workshop merge.
  */
 export async function freezeArtBlobs(
   files: Partial<Record<ArtPackFile, Blob>>,
+  options?: CollectArtPackOptions,
 ): Promise<CollectArtPackResult> {
+  const requireComplete = options?.requireComplete !== false
   const next: Partial<Record<ArtPackFile, Blob>> = {}
   const names: ArtPackFile[] = []
   let notImage = false
@@ -185,6 +208,14 @@ export async function freezeArtBlobs(
     } catch {
       notImage = true
     }
+  }
+
+  if (!requireComplete) {
+    if (names.length === 0) {
+      const reason: CollectArtPackFailReason = tooLarge ? 'tooLarge' : notImage ? 'notImage' : 'missing'
+      return fail(reason, [...ART_PACK_REQUIRED], names)
+    }
+    return { ok: true, files: next, names }
   }
 
   const missingRequired = ART_PACK_REQUIRED.filter(name => next[name] === undefined)

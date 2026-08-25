@@ -1,12 +1,13 @@
 /**
- * Load the active art source: packaged sprites, local IDB pack, imported zip,
+ * Load the active art source: packaged sprites, local IDB pack, library pack,
  * remote directory URL, or remote zip URL. Also resolves prop layout.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ResolvedMuyuPrefs } from '../config.ts'
 import { collectArtPackFromZip, fetchZipBytesCapped, freezeArtBlobs, isZipArtUrl } from './art-files.ts'
 import {
-  loadArtPack, objectUrlsForFittedPack, objectUrlsForPack, revokeObjectUrls, type ArtPackSlot,
+  loadArtPack, loadLibraryPack, objectUrlsForFittedPack, objectUrlsForPack, revokeObjectUrls,
+  type ArtPackSlot,
 } from './art-idb.ts'
 import {
   DEFAULT_PROPS_LAYOUT, parseLayoutJson, resolvePropsLayout, type ArtPropsLayout,
@@ -71,19 +72,22 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
   const fileMapRef = useRef(fileMap)
   fileMapRef.current = fileMap
   const slot = slotForSource(prefs.artSource)
+  const libraryId = prefs.artSource === 'library' ? prefs.artPackId.trim() : ''
   const zipUrl = prefs.artSource === 'url' && isZipArtUrl(prefs.artBaseUrl)
     ? prefs.artBaseUrl.trim()
     : ''
   const directoryUrl = prefs.artSource === 'url' && zipUrl === ''
     ? prefs.artBaseUrl
     : undefined
-  const packKey = slot !== null
-    ? `${slot}:${prefs.artPackRev}`
-    : zipUrl !== ''
-      ? `urlzip:${zipUrl}`
-      : directoryUrl !== undefined && directoryUrl.trim() !== ''
-        ? `urldir:${directoryUrl.trim()}`
-        : ''
+  const packKey = libraryId !== ''
+    ? `library:${libraryId}:${prefs.artPackRev}`
+    : slot !== null
+      ? `${slot}:${prefs.artPackRev}`
+      : zipUrl !== ''
+        ? `urlzip:${zipUrl}`
+        : directoryUrl !== undefined && directoryUrl.trim() !== ''
+          ? `urldir:${directoryUrl.trim()}`
+          : ''
 
   useEffect(() => {
     let cancelled = false
@@ -106,7 +110,17 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
       return
     }
 
-    if (slot !== null) {
+    if (libraryId !== '') {
+      void loadLibraryPack(libraryId)
+        .then(async (pack) => {
+          if (pack === null) {
+            adopt(packKey, undefined, DEFAULT_PROPS_LAYOUT)
+            return
+          }
+          adopt(packKey, await objectUrlsForFittedPack(pack), resolvePropsLayout(pack.props))
+        })
+        .catch(() => { adopt(packKey, undefined, DEFAULT_PROPS_LAYOUT) })
+    } else if (slot !== null) {
       void loadArtPack(slot)
         .then(async (pack) => {
           if (pack === null) {
@@ -127,17 +141,15 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
     }
 
     return () => { cancelled = true }
-  }, [packKey, slot, zipUrl, directoryUrl, prefs.artSource])
+  }, [packKey, slot, zipUrl, directoryUrl, prefs.artSource, libraryId])
 
   useEffect(() => () => {
     revokeObjectUrls(fileMapRef.current)
   }, [])
 
-  const activeMap = loadedKey === packKey && packKey !== '' && slot !== null
+  const activeMap = loadedKey === packKey && packKey !== '' && (libraryId !== '' || slot !== null || zipUrl !== '')
     ? fileMap
-    : loadedKey === packKey && zipUrl !== ''
-      ? fileMap
-      : undefined
+    : undefined
 
   const activeProps = loadedKey === packKey && packKey !== ''
     ? propsLayout

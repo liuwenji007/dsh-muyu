@@ -17,6 +17,7 @@ describe('resolveMuyuPrefs', () => {
       plaque: 'censer',
       artSource: 'builtin',
       artBaseUrl: '',
+      artPackId: '',
       artPackRev: 0,
     })
   })

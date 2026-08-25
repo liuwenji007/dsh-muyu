@@ -20,7 +20,7 @@ Wooden-fish overlay in the lower-right of the Web client. Knock the head for mer
 - Plaque is censer or board (default censer). Exact digits through 9999, then `Nk`.
 - `prefers-reduced-motion` skips the hop and the floating +1.
 
-Tune feel and art in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold, art source). Local pack is for making and debugging; URL / zip is for sharing and using someone else’s pack.
+Tune feel and art in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold, art source). Workshop is for making; **Library** holds imported / saved packs you can switch between; URL is for hosted packs.
 
 ## Install
 
@@ -82,23 +82,23 @@ dsh --profile web
 | First auto-knock after busy | 1000 ms | |
 | Auto-knock interval | 1000 ms | |
 | Big-bump combo | 5 | Release at or above this plays big bump, then recover (or small bump if that sprite is missing) |
-| Art source | built-in | Built-in / local / remote URL / remote zip |
-| Local pack | (empty) | Folder or PNGs; workbench aligns poses and tunes hotzone / stick / float / plaque text |
+| Art source | built-in | Built-in / workshop / library / URL |
+| Library | (empty) | Imported zips / packs saved from the workshop; switch, rename, delete |
+| Local workshop | (empty) | Folder or PNGs to align; export an aligned pack or save into the library |
 | Pack URL | (empty) | Hosted directory or `.zip` URL; optional `layout.json` |
-| Import zip | — | Same remote group as URL; does not overwrite the local working pack |
-| Export aligned pack | — | Under the local workbench; bakes pose crops and writes `layout.json` so others can import and use it |
+| Export aligned pack | — | Under the workshop; bakes pose crops and writes `layout.json` so others can import and use it |
 
 Files in that folder or zip: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png` and `layout.json`. Aligned packs bake pose crops into the PNGs; `layout.json` mainly carries hotzone / stick / float / plaque placement. Changes apply immediately — no reinstall.
 
 **Settings → Wooden fish → Export template** downloads the official filenames zip; after aligning, use **Export aligned pack** under the workbench to share. A zip URL needs CORS on the host.
 
-Local pack and remote zip use separate slots, so trying someone else’s zip does not wipe the files you are editing.
+The workshop and library are separate: importing a zip adds a library entry and does not wipe files you are editing.
 
 Bump hold and auto-hit pose length stay matched to the default art — edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`. Stick hotspot and hotzone are tunable in the workbench / `layout.json`.
 
 ## Notes
 
-- Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Local and imported-zip packs live in IndexedDB (`dsh.muyu.art`), separate from the URL field. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page.
+- Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Workshop drafts and library packs live in IndexedDB (`dsh.muyu.art`), separate from the URL field. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page.
 - No dragging, so it does not cover the side panel.
 - You can also replace files under `src/client/assets/` and rebuild to ship a new default skin.
 
