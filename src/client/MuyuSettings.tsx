@@ -264,6 +264,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       setExportStatus('fail')
       return
     }
+    setExportStatus('idle')
     void downloadStoredArtPack(localPack.files, layout).then(() => {
       setExportStatus('done')
     }).catch(() => {
@@ -460,6 +461,23 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
           <div className={css.panel}>
             <h4 className={css.panelTitle}>{t('settings.artFit.title')}</h4>
             <ArtWorkbench pack={localPack} t={t} onCommitLayout={onCommitLayout} />
+            <div className={css.toolbar}>
+              <p className={css.hint}>{t('settings.artExport.localHint')}</p>
+              <Button
+                variant="primary"
+                size="sm"
+                type="button"
+                onClick={onExportLocal}
+              >
+                {t('settings.artExport.local')}
+              </Button>
+            </div>
+            {exportStatus === 'done' && (
+              <p className={`${css.status} ${css.statusOk}`} role="status">{t('settings.artExport.done')}</p>
+            )}
+            {exportStatus === 'fail' && (
+              <p className={`${css.status} ${css.statusError}`} role="alert">{t('settings.artExport.fail')}</p>
+            )}
           </div>
         )}
       </section>
@@ -513,15 +531,6 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
             <Button variant="outline" size="sm" type="button" onClick={onExport}>
               {t('settings.artExport')}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              type="button"
-              disabled={localPack === null || localPack.stage === undefined}
-              onClick={onExportLocal}
-            >
-              {t('settings.artExport.local')}
-            </Button>
           </div>
           <Button
             variant="outline"
@@ -547,12 +556,6 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
           >
             {importHint}
           </p>
-        )}
-        {exportStatus === 'done' && (
-          <p className={`${css.status} ${css.statusOk}`} role="status">{t('settings.artExport.done')}</p>
-        )}
-        {exportStatus === 'fail' && (
-          <p className={`${css.status} ${css.statusError}`} role="alert">{t('settings.artExport.fail')}</p>
         )}
       </section>
     </form>

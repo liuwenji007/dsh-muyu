@@ -86,11 +86,11 @@ dsh --profile web
 | 本地图包 | （空） | 选文件夹或 PNG；工作台可对齐姿势，并调节敲击区 / 木棍热点 / 飘字 / 功德牌文字区 |
 | 图包 URL | （空） | 别人托管的目录或 `.zip` 地址；可附带 `layout.json` |
 | 导入 zip | — | 与 URL 同属远程图包，不覆盖本地制作中的文件 |
-| 导出本地包 | — | 把当前本地图 + `layout.json` 打成 zip，方便分享二创 |
+| 导出对齐包 | — | 在本地工作台下方；按对齐裁切姿势图并写入 `layout.json`，他人导入即可直接用 |
 
-图源目录或 zip 里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。`bump-recover.png` 与 `layout.json` 可选：有 layout 则姿势裁切与道具摆位跟着包走，没有则用内置默认。改完即时生效，不用重新安装插件。
+图源目录或 zip 里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。`bump-recover.png` 与 `layout.json` 可选。对齐包会把姿势裁进 PNG（同尺寸），`layout.json` 主要带敲击区/木棍/飘字/功德牌摆位。改完即时生效，不用重新安装插件。
 
-在 **设置 → 木鱼 → 导出模板** 可下载官方文件名 zip（含默认 `layout.json`）；**导出本地包** 则带上你对齐后的结果。做图时用「本地图包」加载文件夹，在工作台里把姿势与道具对齐；分享时把目录或 zip 传到静态托管。zip 的 URL 需要对方站点允许跨域。
+在 **设置 → 木鱼 → 导出模板** 可下载官方文件名 zip；对齐完成后用工作台下方的 **导出对齐包** 分享。zip 的 URL 需要对方站点允许跨域。
 
 本地图包和远程 zip 分槽存放：试别人的 zip 不会冲掉你正在改的本地文件。
 

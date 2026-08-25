@@ -86,11 +86,11 @@ dsh --profile web
 | Local pack | (empty) | Folder or PNGs; workbench aligns poses and tunes hotzone / stick / float / plaque text |
 | Pack URL | (empty) | Hosted directory or `.zip` URL; optional `layout.json` |
 | Import zip | — | Same remote group as URL; does not overwrite the local working pack |
-| Export local pack | — | Zip current local art + `layout.json` for sharing a remix |
+| Export aligned pack | — | Under the local workbench; bakes pose crops and writes `layout.json` so others can import and use it |
 
-Files in that folder or zip: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png` and `layout.json`: with layout, pose crop and prop placement travel with the pack; without it, built-in defaults apply. Changes apply immediately — no reinstall.
+Files in that folder or zip: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png` and `layout.json`. Aligned packs bake pose crops into the PNGs; `layout.json` mainly carries hotzone / stick / float / plaque placement. Changes apply immediately — no reinstall.
 
-**Settings → Wooden fish → Export template** downloads the official filenames zip (with default `layout.json`); **Export local pack** includes your aligned result. Load a folder as a local pack and align in the workbench; to share, host the folder or zip. A zip URL needs CORS on the host.
+**Settings → Wooden fish → Export template** downloads the official filenames zip; after aligning, use **Export aligned pack** under the workbench to share. A zip URL needs CORS on the host.
 
 Local pack and remote zip use separate slots, so trying someone else’s zip does not wipe the files you are editing.
 

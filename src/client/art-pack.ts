@@ -7,6 +7,9 @@ import {
   ADD_SRC, PLAQUE_SRC, POSE_SRC, STICK_SRC,
 } from './assets/poses.ts'
 import {
+  blobSize, containFit, rasterizeFit, type ArtFit,
+} from './art-fit.ts'
+import {
   DEFAULT_PROPS_LAYOUT, serializeLayoutJson, type ArtPackLayout,
 } from './art-layout.ts'
 
@@ -64,9 +67,9 @@ ${ART_PACK_REQUIRED.map(name => `- ${name}`).join('\n')}
 Optional:
 - bump-recover.png — after a big bump, play this then idle. If missing, the
   overlay falls back to bump.png (small bump) as before.
-- layout.json — pose crop (stage/fits) plus prop placement (hotzone, stick,
-  add, plaque). The local workbench writes this; sharing it keeps remix
-  alignment intact. Safe to omit — defaults match the built-in skin.
+- layout.json — prop placement (hotzone, stick, add, plaque). Shared packs from
+  "Export aligned pack" already bake pose crops into the PNGs (same pixel size,
+  identity fits); props still travel in this file.
 
 Switch the art source back to Built-in to use the packaged sprites again.
 `
@@ -225,20 +228,62 @@ export function downloadBuiltinArtPack(): void {
 }
 
 /**
- * Zip a stored pack (files + layout.json) for sharing a remix.
+ * Rasterize pose frames through the workbench fits so a shared zip plays
+ * aligned without re-cropping. Prop art stays original; props stay in layout.
+ * @param files - original pack blobs.
+ * @param layout - stage + fits + props from the workbench.
+ */
+export async function bakeArtPackForShare(
+  files: Partial<Record<ArtPackFile, Blob>>,
+  layout: ArtPackLayout,
+): Promise<{ files: Partial<Record<ArtPackFile, Blob>>; layout: ArtPackLayout }> {
+  const baked: Partial<Record<ArtPackFile, Blob>> = {}
+  const fits: Partial<Record<ArtPackFile, ArtFit>> = {}
+  const identity: ArtFit = { scale: 1, offsetX: 0, offsetY: 0 }
+
+  for (const name of ART_PACK_FILES) {
+    const blob = files[name]
+    if (!(blob instanceof Blob)) continue
+    if (!isArtPackPose(name)) {
+      baked[name] = blob
+      continue
+    }
+    let fit = layout.fits[name]
+    if (fit === undefined) {
+      const size = await blobSize(blob)
+      fit = containFit(size.width, size.height, layout.stage)
+    }
+    baked[name] = await rasterizeFit(blob, fit, layout.stage)
+    fits[name] = { ...identity }
+  }
+
+  return {
+    files: baked,
+    layout: {
+      stage: layout.stage,
+      fits,
+      props: layout.props,
+    },
+  }
+}
+
+/**
+ * Zip a stored pack for sharing: pose PNGs are cropped to the aligned stage,
+ * props stay original, layout.json carries prop placement (+ identity fits).
  * @param files - pack blobs.
- * @param layout - pose + prop layout (required for a complete share).
+ * @param layout - pose + prop layout.
  */
 export async function buildStoredArtPackZip(
   files: Partial<Record<ArtPackFile, Blob>>,
   layout: ArtPackLayout,
 ): Promise<{ bytes: Uint8Array; filename: string }> {
+  const baked = await bakeArtPackForShare(files, layout)
   const out: Record<string, Uint8Array> = {
     'README.txt': new TextEncoder().encode(PACK_README),
-    'layout.json': new TextEncoder().encode(serializeLayoutJson(layout)),
+    'layout.json': new TextEncoder().encode(serializeLayoutJson(baked.layout)),
   }
   for (const name of ART_PACK_FILES) {
-    const blob = files[name]
+    const blob = baked.files[name]
     if (!(blob instanceof Blob)) continue
     out[name] = new Uint8Array(await blob.arrayBuffer())
   }
@@ -246,7 +291,7 @@ export async function buildStoredArtPackZip(
 }
 
 /**
- * Download a stored local/zip pack with its layout.json.
+ * Download an aligned share pack (baked pose crops + layout.json).
  * @param files - pack blobs.
  * @param layout - full layout.
  */

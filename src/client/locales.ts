@@ -73,8 +73,9 @@ export const zh = {
   'settings.artImport.missing': '缺少：',
   'settings.artImport.empty': '未读到图片',
   'settings.artExport': '导出模板',
-  'settings.artExport.local': '导出本地包',
-  'settings.artExport.hint': '模板含官方图与默认 layout.json；本地包带你的图与对齐结果。',
+  'settings.artExport.local': '导出对齐包',
+  'settings.artExport.localHint': '按当前对齐裁切姿势图，并写入 layout.json（敲击区/木棍等）。他人导入即可直接用。',
+  'settings.artExport.hint': '下载官方文件名模板，改图后可本地导入或托管分享。',
   'settings.artExport.done': '开始下载',
   'settings.artExport.fail': '导出失败',
 } satisfies Record<string, string>
@@ -155,8 +156,9 @@ export const en = {
   'settings.artImport.missing': 'Missing:',
   'settings.artImport.empty': 'No images read',
   'settings.artExport': 'Export template',
-  'settings.artExport.local': 'Export local pack',
-  'settings.artExport.hint': 'Template has official art + default layout.json; local pack includes your art and alignment.',
+  'settings.artExport.local': 'Export aligned pack',
+  'settings.artExport.localHint': 'Bakes pose crops from the workbench and writes layout.json (hotzone/stick/…). Others can import and use it directly.',
+  'settings.artExport.hint': 'Official filenames zip — remix locally or host to share.',
   'settings.artExport.done': 'Download started',
   'settings.artExport.fail': 'Export failed',
 } satisfies Record<MuyuKey, string>
