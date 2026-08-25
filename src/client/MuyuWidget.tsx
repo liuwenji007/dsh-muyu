@@ -64,10 +64,12 @@ export function MuyuWidget({
   const stickSrc = art.stickSrc
   const addSrc = art.addSrc
   const plaqueSrc = art.plaqueSrc
+  const propsLayout = art.props
   const tunables = useMemo(
     () => ({ ...prefsTunables, hasBumpRecover: art.hasBumpRecover }),
     [prefsTunables, art.hasBumpRecover],
   )
+  const plaqueSkin = propsLayout.plaque[tunables.plaque]
   const merit = useStore(s => {
     const map = s.bySession ?? {}
     return sessionId === undefined ? 0 : (map[sessionId] ?? 0)
@@ -142,8 +144,8 @@ export function MuyuWidget({
 
   const followStick = (event: PointerEvent<HTMLButtonElement>) => {
     setStickAt({
-      x: event.clientX - tunables.stickHotspotX,
-      y: event.clientY - tunables.stickHotspotY,
+      x: event.clientX - propsLayout.stick.hotspotX,
+      y: event.clientY - propsLayout.stick.hotspotY,
     })
   }
 
@@ -181,6 +183,12 @@ export function MuyuWidget({
         <button
           type="button"
           className={css.hotzone}
+          style={{
+            top: `${propsLayout.hotzone.top}%`,
+            left: `${propsLayout.hotzone.left}%`,
+            width: `${propsLayout.hotzone.width}%`,
+            height: `${propsLayout.hotzone.height}%`,
+          }}
           aria-label={t('knock.aria')}
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
@@ -200,6 +208,12 @@ export function MuyuWidget({
             draggable={false}
             aria-hidden="true"
             data-merit-float=""
+            style={{
+              top: `${propsLayout.add.top}%`,
+              left: `${propsLayout.add.left}%`,
+              maxWidth: propsLayout.add.maxPx,
+              maxHeight: propsLayout.add.maxPx,
+            }}
           />
         ))}
       </div>
@@ -207,6 +221,11 @@ export function MuyuWidget({
         className={clsx(css.plaque, plaquePop && css.plaquePop)}
         data-plaque={tunables.plaque}
         aria-label={t('plaque.aria')}
+        style={{
+          width: `min(${plaqueSkin.widthPx}px, 22vw)`,
+          marginBottom: plaqueSkin.marginBottom,
+          marginLeft: plaqueSkin.marginLeft,
+        }}
       >
         <img
           className={css.plaqueBoard}
@@ -216,7 +235,15 @@ export function MuyuWidget({
           aria-hidden="true"
           data-plaque-board=""
         />
-        <div className={css.plaqueCopy}>
+        <div
+          className={css.plaqueCopy}
+          style={{
+            top: `${plaqueSkin.text.top}%`,
+            left: `${plaqueSkin.text.left}%`,
+            width: `${plaqueSkin.text.width}%`,
+            height: `${plaqueSkin.text.height}%`,
+          }}
+        >
           <span className={css.plaqueValue}>{formatPlaqueMerit(merit)}</span>
         </div>
       </div>
@@ -228,7 +255,12 @@ export function MuyuWidget({
           draggable={false}
           aria-hidden="true"
           data-stick-cursor=""
-          style={{ left: stickAt.x, top: stickAt.y }}
+          style={{
+            left: stickAt.x,
+            top: stickAt.y,
+            maxWidth: propsLayout.stick.maxPx,
+            maxHeight: propsLayout.stick.maxPx,
+          }}
         />
       )}
     </div>

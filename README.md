@@ -83,17 +83,18 @@ dsh --profile web
 | 自动敲间隔 | 1000 ms | |
 | 大包连击阈值 | 5 | 达到后松手先大包，有消包图则消包再笑脸，否则小包 |
 | 自定义图源 | 内置 | **当前图源** 可选内置 / 本地 / 远程 URL / 远程 zip |
-| 本地图包 | （空） | 选文件夹或 PNG；姿势帧可在工作台里预览、拖移、缩放，按同一裁切框对齐 |
-| 图包 URL | （空） | 别人托管的目录或 `.zip` 地址 |
+| 本地图包 | （空） | 选文件夹或 PNG；工作台可对齐姿势，并调节敲击区 / 木棍热点 / 飘字 / 功德牌文字区 |
+| 图包 URL | （空） | 别人托管的目录或 `.zip` 地址；可附带 `layout.json` |
 | 导入 zip | — | 与 URL 同属远程图包，不覆盖本地制作中的文件 |
+| 导出本地包 | — | 把当前本地图 + `layout.json` 打成 zip，方便分享二创 |
 
-图源目录或 zip 里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。`bump-recover.png` 可选：有则大包后先消包再回笑脸，没有则仍走小包。改完即时生效，不用重新安装插件。
+图源目录或 zip 里需要这些文件名：`idle.png`、`auto-hit.png`、`manual-hit.png`、`bump.png`、`bump-big.png`、`stick.png`、`board.png`、`censer.png`、`add.png`。`bump-recover.png` 与 `layout.json` 可选：有 layout 则姿势裁切与道具摆位跟着包走，没有则用内置默认。改完即时生效，不用重新安装插件。
 
-在 **设置 → 木鱼 → 导出官方图包** 可下载同名 zip。做图时用「本地图包」加载文件夹，在工作台里把各姿势对齐到同一画布；分享时把目录或 zip 传到静态托管，把 URL 发给别人，或让他们直接导入 zip。zip 的 URL 需要对方站点允许跨域。
+在 **设置 → 木鱼 → 导出模板** 可下载官方文件名 zip（含默认 `layout.json`）；**导出本地包** 则带上你对齐后的结果。做图时用「本地图包」加载文件夹，在工作台里把姿势与道具对齐；分享时把目录或 zip 传到静态托管。zip 的 URL 需要对方站点允许跨域。
 
 本地图包和远程 zip 分槽存放：试别人的 zip 不会冲掉你正在改的本地文件。
 
-起包停留、自动敲姿势时长、木棍光标热点跟默认图绑在一起，改 [`src/config.ts`](src/config.ts) 里的 `ART_TUNABLES` 后重新 `pnpm run build`。
+起包停留、自动敲姿势时长仍跟默认图绑在一起，改 [`src/config.ts`](src/config.ts) 里的 `ART_TUNABLES` 后重新 `pnpm run build`。木棍热点与敲击区等已可在工作台 / `layout.json` 里改。
 
 ## 注意
 

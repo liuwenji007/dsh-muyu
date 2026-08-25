@@ -1,6 +1,6 @@
 /**
  * Load the active art source: packaged sprites, local IDB pack, imported zip,
- * remote directory URL, or remote zip URL.
+ * remote directory URL, or remote zip URL. Also resolves prop layout.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ResolvedMuyuPrefs } from '../config.ts'
@@ -8,9 +8,12 @@ import { collectArtPackFromZip, fetchZipBytesCapped, freezeArtBlobs, isZipArtUrl
 import {
   loadArtPack, objectUrlsForFittedPack, objectUrlsForPack, revokeObjectUrls, type ArtPackSlot,
 } from './art-idb.ts'
+import {
+  DEFAULT_PROPS_LAYOUT, parseLayoutJson, resolvePropsLayout, type ArtPropsLayout,
+} from './art-layout.ts'
 import type { ArtFileSrcMap } from './art-src.ts'
 import {
-  packHasBumpRecover, probeImageSrc, resolveAddSrc, resolvePlaqueSrc, resolvePoseSrc,
+  packHasBumpRecover, probeImageSrc, resolveAddSrc, resolveArtUrl, resolvePlaqueSrc, resolvePoseSrc,
   resolveStickSrc,
 } from './art-src.ts'
 import type { MuyuPose } from './muyu-machine.ts'
@@ -21,6 +24,7 @@ export type MuyuArtSrc = {
   addSrc: string
   plaqueSrc: string
   hasBumpRecover: boolean
+  props: ArtPropsLayout
 }
 
 function slotForSource(source: ResolvedMuyuPrefs['artSource']): ArtPackSlot | null {
@@ -29,21 +33,40 @@ function slotForSource(source: ResolvedMuyuPrefs['artSource']): ArtPackSlot | nu
   return null
 }
 
-async function fetchZipFileMap(url: string): Promise<ArtFileSrcMap> {
+async function fetchZipBundle(url: string): Promise<{ files: ArtFileSrcMap; props: ArtPropsLayout }> {
   const buffer = await fetchZipBytesCapped(url)
   const pack = await collectArtPackFromZip(buffer)
   if (!pack.ok) throw new Error(`zip pack rejected: ${pack.reason}`)
   const frozen = await freezeArtBlobs(pack.files)
   if (!frozen.ok) throw new Error(`zip pack rejected: ${frozen.reason}`)
-  return objectUrlsForPack(frozen.files)
+  return {
+    files: objectUrlsForPack(frozen.files),
+    props: resolvePropsLayout(pack.layout?.props),
+  }
+}
+
+async function fetchDirectoryLayout(base: string): Promise<ArtPropsLayout> {
+  const href = resolveArtUrl(base, 'layout.json', '')
+  if (href === '') return DEFAULT_PROPS_LAYOUT
+  try {
+    const response = await fetch(href, { cache: 'no-store' })
+    if (!response.ok) return DEFAULT_PROPS_LAYOUT
+    const text = await response.text()
+    const parsed = parseLayoutJson(text)
+    return parsed === null ? DEFAULT_PROPS_LAYOUT : parsed.props
+  } catch {
+    return DEFAULT_PROPS_LAYOUT
+  }
 }
 
 /**
- * Resolve overlay sprites for the current prefs. Object URLs are revoked on change.
+ * Resolve overlay sprites + prop layout for the current prefs.
+ * Object URLs are revoked on change.
  * @param prefs - resolved user prefs.
  */
 export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
   const [fileMap, setFileMap] = useState<ArtFileSrcMap | undefined>(undefined)
+  const [propsLayout, setPropsLayout] = useState<ArtPropsLayout>(DEFAULT_PROPS_LAYOUT)
   const [loadedKey, setLoadedKey] = useState('')
   const fileMapRef = useRef(fileMap)
   fileMapRef.current = fileMap
@@ -58,12 +81,14 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
     ? `${slot}:${prefs.artPackRev}`
     : zipUrl !== ''
       ? `urlzip:${zipUrl}`
-      : ''
+      : directoryUrl !== undefined && directoryUrl.trim() !== ''
+        ? `urldir:${directoryUrl.trim()}`
+        : ''
 
   useEffect(() => {
     let cancelled = false
 
-    const adopt = (key: string, next: ArtFileSrcMap | undefined) => {
+    const adopt = (key: string, next: ArtFileSrcMap | undefined, props: ArtPropsLayout) => {
       if (cancelled) {
         revokeObjectUrls(next)
         return
@@ -72,11 +97,12 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
         if (prev !== next) revokeObjectUrls(prev)
         return next
       })
+      setPropsLayout(props)
       setLoadedKey(key)
     }
 
-    if (packKey === '') {
-      adopt('', undefined)
+    if (prefs.artSource === 'builtin' || packKey === '') {
+      adopt('', undefined, DEFAULT_PROPS_LAYOUT)
       return
     }
 
@@ -84,26 +110,38 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
       void loadArtPack(slot)
         .then(async (pack) => {
           if (pack === null) {
-            adopt(packKey, undefined)
+            adopt(packKey, undefined, DEFAULT_PROPS_LAYOUT)
             return
           }
-          adopt(packKey, await objectUrlsForFittedPack(pack))
+          adopt(packKey, await objectUrlsForFittedPack(pack), resolvePropsLayout(pack.props))
         })
-        .catch(() => { adopt(packKey, undefined) })
-    } else {
-      void fetchZipFileMap(zipUrl)
-        .then((urls) => { adopt(packKey, urls) })
-        .catch(() => { adopt(packKey, undefined) })
+        .catch(() => { adopt(packKey, undefined, DEFAULT_PROPS_LAYOUT) })
+    } else if (zipUrl !== '') {
+      void fetchZipBundle(zipUrl)
+        .then((bundle) => { adopt(packKey, bundle.files, bundle.props) })
+        .catch(() => { adopt(packKey, undefined, DEFAULT_PROPS_LAYOUT) })
+    } else if (directoryUrl !== undefined) {
+      void fetchDirectoryLayout(directoryUrl)
+        .then((props) => { adopt(packKey, undefined, props) })
+        .catch(() => { adopt(packKey, undefined, DEFAULT_PROPS_LAYOUT) })
     }
 
     return () => { cancelled = true }
-  }, [packKey, slot, zipUrl])
+  }, [packKey, slot, zipUrl, directoryUrl, prefs.artSource])
 
   useEffect(() => () => {
     revokeObjectUrls(fileMapRef.current)
   }, [])
 
-  const activeMap = loadedKey === packKey && packKey !== '' ? fileMap : undefined
+  const activeMap = loadedKey === packKey && packKey !== '' && slot !== null
+    ? fileMap
+    : loadedKey === packKey && zipUrl !== ''
+      ? fileMap
+      : undefined
+
+  const activeProps = loadedKey === packKey && packKey !== ''
+    ? propsLayout
+    : DEFAULT_PROPS_LAYOUT
 
   const poseSrc = useMemo(
     () => resolvePoseSrc(directoryUrl, activeMap),
@@ -147,5 +185,6 @@ export function useMuyuArt(prefs: ResolvedMuyuPrefs): MuyuArtSrc {
     addSrc,
     plaqueSrc,
     hasBumpRecover: probedRecover,
+    props: activeProps,
   }
 }

@@ -83,17 +83,18 @@ dsh --profile web
 | Auto-knock interval | 1000 ms | |
 | Big-bump combo | 5 | Release at or above this plays big bump, then recover (or small bump if that sprite is missing) |
 | Art source | built-in | Built-in / local / remote URL / remote zip |
-| Local pack | (empty) | Folder or PNGs; pose frames can be previewed, panned, and scaled into one crop |
-| Pack URL | (empty) | Hosted directory or `.zip` URL |
+| Local pack | (empty) | Folder or PNGs; workbench aligns poses and tunes hotzone / stick / float / plaque text |
+| Pack URL | (empty) | Hosted directory or `.zip` URL; optional `layout.json` |
 | Import zip | — | Same remote group as URL; does not overwrite the local working pack |
+| Export local pack | — | Zip current local art + `layout.json` for sharing a remix |
 
-Files in that folder or zip: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png`: after a big bump, play this then idle; if missing, keep the small-bump recovery. Changes apply immediately — no reinstall.
+Files in that folder or zip: `idle.png`, `auto-hit.png`, `manual-hit.png`, `bump.png`, `bump-big.png`, `stick.png`, `board.png`, `censer.png`, `add.png`. Optional `bump-recover.png` and `layout.json`: with layout, pose crop and prop placement travel with the pack; without it, built-in defaults apply. Changes apply immediately — no reinstall.
 
-**Settings → Wooden fish → Export official art pack** downloads a zip with those names. Load the folder as a local pack and align poses in the workbench; to share, host the folder or zip and send the URL, or let others import the zip. A zip URL needs CORS on the host.
+**Settings → Wooden fish → Export template** downloads the official filenames zip (with default `layout.json`); **Export local pack** includes your aligned result. Load a folder as a local pack and align in the workbench; to share, host the folder or zip. A zip URL needs CORS on the host.
 
 Local pack and remote zip use separate slots, so trying someone else’s zip does not wipe the files you are editing.
 
-Bump hold, auto-hit pose length, and the stick hotspot stay matched to the default art. Edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`.
+Bump hold and auto-hit pose length stay matched to the default art — edit `ART_TUNABLES` in [`src/config.ts`](src/config.ts) and `pnpm run build`. Stick hotspot and hotzone are tunable in the workbench / `layout.json`.
 
 ## Notes
 

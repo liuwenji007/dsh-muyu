@@ -1,11 +1,13 @@
 /**
  * Collect and validate a muyu art pack from loose files or zip entries.
  * Matching is by basename so `skin/idle.png` still counts.
+ * Optional `layout.json` carries pose crop + prop placement.
  */
 import {
   ART_PACK_FILES, ART_PACK_REQUIRED, type ArtPackFile,
 } from './art-pack.ts'
 import { ART_PACK_MAX_EDGE, blobSize } from './art-fit.ts'
+import { parseLayoutJson, type ParsedArtLayout } from './art-layout.ts'
 import { unzip } from './art-zip.ts'
 
 /** Reject a single sprite larger than this (compressed bytes). */
@@ -50,13 +52,31 @@ export type ArtPackBlobs = Partial<Record<ArtPackFile, Blob>>
 export type CollectArtPackFailReason = 'missing' | 'tooLarge' | 'notImage'
 
 export type CollectArtPackResult =
-  | { ok: true; files: Partial<Record<ArtPackFile, Blob>>; names: ArtPackFile[] }
+  | {
+    ok: true
+    files: Partial<Record<ArtPackFile, Blob>>
+    names: ArtPackFile[]
+    /** Present when the pack shipped a valid `layout.json`. */
+    layout?: ParsedArtLayout
+  }
   | {
     ok: false
     reason: CollectArtPackFailReason
     missingRequired: Array<(typeof ART_PACK_REQUIRED)[number]>
     names: string[]
   }
+
+/** Basename used for shared layout beside the PNGs. */
+export const ART_LAYOUT_FILENAME = 'layout.json'
+
+async function readLayoutBlob(blob: Blob): Promise<ParsedArtLayout | undefined> {
+  try {
+    const text = await blob.text()
+    return parseLayoutJson(text) ?? undefined
+  } catch {
+    return undefined
+  }
+}
 
 function fail(
   reason: CollectArtPackFailReason,
@@ -68,6 +88,7 @@ function fail(
 
 /**
  * Keep known art filenames from a file list. Required names must all be present.
+ * Also picks up optional `layout.json` (async companion: {@link collectArtPackAsync}).
  * @param inputs - zip entries or `<input type="file">` items.
  */
 export function collectArtPack(
@@ -93,6 +114,31 @@ export function collectArtPack(
     return fail(sawTooLarge ? 'tooLarge' : 'missing', missingRequired, names)
   }
   return { ok: true, files, names }
+}
+
+/**
+ * Like {@link collectArtPack}, but also parses `layout.json` when present.
+ * @param inputs - zip entries or file picker items.
+ */
+export async function collectArtPackAsync(
+  inputs: ReadonlyArray<{ name: string; blob: Blob }>,
+): Promise<CollectArtPackResult> {
+  let layoutBlob: Blob | undefined
+  const images: Array<{ name: string; blob: Blob }> = []
+  for (const input of inputs) {
+    if (isIgnoredArtPath(input.name)) continue
+    const base = artPackBasename(input.name)
+    if (base === ART_LAYOUT_FILENAME) {
+      layoutBlob = input.blob
+      continue
+    }
+    images.push(input)
+  }
+  const collected = collectArtPack(images)
+  if (!collected.ok) return collected
+  if (layoutBlob === undefined) return collected
+  const layout = await readLayoutBlob(layoutBlob)
+  return layout === undefined ? collected : { ...collected, layout }
 }
 
 function bytesToPngBlob(data: Uint8Array): Blob {
@@ -150,7 +196,7 @@ export async function freezeArtBlobs(
 }
 
 /**
- * Unpack a zip and keep known art filenames.
+ * Unpack a zip and keep known art filenames (+ optional `layout.json`).
  * Caller should {@link freezeArtBlobs} before IndexedDB or object URLs.
  * @param bytes - zip file bytes (store or deflate).
  */
@@ -160,9 +206,21 @@ export async function collectArtPackFromZip(bytes: Uint8Array): Promise<CollectA
   }
   try {
     const entries = await unzip(bytes)
-    return collectArtPack(
-      Object.entries(entries).map(([name, data]) => ({ name, blob: bytesToPngBlob(data) })),
-    )
+    const inputs: Array<{ name: string; blob: Blob }> = []
+    for (const [name, data] of Object.entries(entries)) {
+      const base = artPackBasename(name)
+      if (base === ART_LAYOUT_FILENAME) {
+        inputs.push({
+          name,
+          blob: new Blob([data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer], {
+            type: 'application/json',
+          }),
+        })
+      } else {
+        inputs.push({ name, blob: bytesToPngBlob(data) })
+      }
+    }
+    return await collectArtPackAsync(inputs)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (message.includes('too large') || message.includes('zip entry too large') || message.includes('zip total')) {

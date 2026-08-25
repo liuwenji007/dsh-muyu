@@ -127,7 +127,7 @@ export async function blobSize(blob: Blob): Promise<{ width: number; height: num
 
 /**
  * Default shared stage (idle size, clamped) and contain-fits for every pose.
- * Props are left unfitted so stick/plaque/add keep their own pixels.
+ * Stick / plaque / add stay original pixels; their placement lives in {@link ArtPropsLayout}.
  * @param files - imported pack blobs.
  */
 export async function initPoseLayout(

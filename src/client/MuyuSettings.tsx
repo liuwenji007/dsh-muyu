@@ -6,15 +6,18 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
 import type { PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
-import { downloadBuiltinArtPack } from './art-pack.ts'
+import { downloadBuiltinArtPack, downloadStoredArtPack } from './art-pack.ts'
 import { ArtWorkbench } from './ArtWorkbench.tsx'
-import { initPoseLayout, type ArtFit, type ArtStage } from './art-fit.ts'
+import { initPoseLayout } from './art-fit.ts'
 import {
-  ART_PACK_MAX_ZIP_BYTES, collectArtPack, collectArtPackFromZip, freezeArtBlobs,
+  ART_PACK_MAX_ZIP_BYTES, collectArtPackAsync, collectArtPackFromZip, freezeArtBlobs,
   type CollectArtPackResult,
 } from './art-files.ts'
-import { clearArtPack, loadArtPack, saveArtPack, saveArtPackLayout, type StoredArtPack } from './art-idb.ts'
-import type { ArtPackFile } from './art-pack.ts'
+import {
+  clearArtPack, layoutFromPack, loadArtPack, saveArtPack, saveArtPackLayout,
+  type ArtPackLayoutInput, type StoredArtPack,
+} from './art-idb.ts'
+import { resolvePropsLayout } from './art-layout.ts'
 import type { createMuyuStore } from './stores.ts'
 import css from './MuyuSettings.module.css'
 
@@ -87,8 +90,12 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       if (cancelled) return
       let nextLocal = local
       if (nextLocal !== null && (nextLocal.stage === undefined || nextLocal.fits === undefined)) {
-        const layout = await initPoseLayout(nextLocal.files)
-        nextLocal = await saveArtPackLayout('local', layout) ?? { ...nextLocal, ...layout }
+        const pose = await initPoseLayout(nextLocal.files)
+        nextLocal = await saveArtPackLayout('local', {
+          stage: pose.stage,
+          fits: pose.fits,
+          props: resolvePropsLayout(nextLocal.props),
+        }) ?? { ...nextLocal, ...pose, props: resolvePropsLayout(nextLocal.props) }
       }
       if (cancelled) return
       setLocalPack(nextLocal)
@@ -144,17 +151,26 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
         rejectCollected(frozen)
         return
       }
-      const layout = slot === 'local' ? await initPoseLayout(frozen.files) : undefined
-      await saveArtPack(slot, frozen.files, layout)
+      const imported = collected.layout
+      let layout: ArtPackLayoutInput | undefined
+      if (imported?.stage !== undefined && imported.fits !== undefined) {
+        layout = {
+          stage: imported.stage,
+          fits: imported.fits,
+          props: resolvePropsLayout(imported.props),
+        }
+      } else {
+        const pose = await initPoseLayout(frozen.files)
+        layout = {
+          stage: pose.stage,
+          fits: pose.fits,
+          props: resolvePropsLayout(imported?.props),
+        }
+      }
+      const saved = await saveArtPack(slot, frozen.files, layout)
       if (slot === 'local') {
         setLocalNames(frozen.names)
-        setLocalPack({
-          files: frozen.files,
-          names: frozen.names,
-          savedAt: Date.now(),
-          stage: layout?.stage,
-          fits: layout?.fits,
-        })
+        setLocalPack(saved)
       }
       else setZipNames(frozen.names)
       bumpRev({ artSource: slot })
@@ -172,7 +188,9 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       setImportStatus('empty')
       return
     }
-    void applyCollected('local', collectArtPack(filesFromPicked(picked)))
+    void (async () => {
+      await applyCollected('local', await collectArtPackAsync(filesFromPicked(picked)))
+    })()
   }
 
   const onZipChange = (event: { currentTarget: HTMLInputElement }) => {
@@ -223,14 +241,33 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     })()
   }
 
-  const onCommitLayout = (layout: { stage: ArtStage; fits: Partial<Record<ArtPackFile, ArtFit>> }) => {
-    setLocalPack(prev => prev === null ? prev : { ...prev, ...layout })
+  const onCommitLayout = (layout: ArtPackLayoutInput) => {
+    setLocalPack(prev => prev === null ? prev : {
+      ...prev,
+      stage: layout.stage,
+      fits: layout.fits,
+      props: layout.props,
+    })
     skipLocalReload.current = true
     void saveArtPackLayout('local', layout).then(() => {
       bumpRev({})
     }).catch(() => {
       skipLocalReload.current = false
       setImportStatus('fail')
+    })
+  }
+
+  const onExportLocal = () => {
+    if (localPack === null) return
+    const layout = layoutFromPack(localPack)
+    if (layout === null) {
+      setExportStatus('fail')
+      return
+    }
+    void downloadStoredArtPack(localPack.files, layout).then(() => {
+      setExportStatus('done')
+    }).catch(() => {
+      setExportStatus('fail')
     })
   }
 
@@ -475,6 +512,15 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
             </label>
             <Button variant="outline" size="sm" type="button" onClick={onExport}>
               {t('settings.artExport')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              disabled={localPack === null || localPack.stage === undefined}
+              onClick={onExportLocal}
+            >
+              {t('settings.artExport.local')}
             </Button>
           </div>
           <Button

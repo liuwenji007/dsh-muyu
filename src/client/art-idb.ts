@@ -4,6 +4,9 @@
  */
 import { isArtPackPose, type ArtPackFile } from './art-pack.ts'
 import { rasterizeFit, type ArtFit, type ArtStage } from './art-fit.ts'
+import {
+  resolvePropsLayout, type ArtPackLayout, type ArtPropsLayout,
+} from './art-layout.ts'
 
 const DB_NAME = 'dsh.muyu.art'
 const DB_VERSION = 1
@@ -20,6 +23,15 @@ export type StoredArtPack = {
   stage?: ArtStage
   /** Pan/zoom per pose, in {@link stage} pixel space. */
   fits?: Partial<Record<ArtPackFile, ArtFit>>
+  /** Hotzone / stick / add / plaque placement; missing packs use defaults. */
+  props?: ArtPropsLayout
+}
+
+/** Layout payload written with pose PNGs. */
+export type ArtPackLayoutInput = {
+  stage: ArtStage
+  fits: Partial<Record<ArtPackFile, ArtFit>>
+  props?: ArtPropsLayout
 }
 
 function idbFactory(): IDBFactory | undefined {
@@ -50,6 +62,31 @@ function requestToPromise<T>(req: IDBRequest<T>): Promise<T> {
 }
 
 /**
+ * Normalize a stored pack so callers see resolved props when any layout is present.
+ * @param record - raw IDB value.
+ */
+export function normalizeStoredPack(record: StoredArtPack): StoredArtPack {
+  if (record.props === undefined && record.stage === undefined) return record
+  return {
+    ...record,
+    props: resolvePropsLayout(record.props),
+  }
+}
+
+/**
+ * Build a serializable layout from a stored pack (for export).
+ * @param pack - local or zip pack with layout.
+ */
+export function layoutFromPack(pack: StoredArtPack): ArtPackLayout | null {
+  if (pack.stage === undefined || pack.fits === undefined) return null
+  return {
+    stage: pack.stage,
+    fits: pack.fits,
+    props: resolvePropsLayout(pack.props),
+  }
+}
+
+/**
  * Write a pack into one slot.
  * @param slot - local working pack or imported zip.
  * @param files - validated art blobs.
@@ -57,7 +94,7 @@ function requestToPromise<T>(req: IDBRequest<T>): Promise<T> {
 export async function saveArtPack(
   slot: ArtPackSlot,
   files: Partial<Record<ArtPackFile, Blob>>,
-  layout?: { stage: ArtStage; fits: Partial<Record<ArtPackFile, ArtFit>> },
+  layout?: ArtPackLayoutInput,
 ): Promise<StoredArtPack> {
   const names = Object.keys(files) as ArtPackFile[]
   const record: StoredArtPack = {
@@ -66,19 +103,20 @@ export async function saveArtPack(
     savedAt: Date.now(),
     stage: layout?.stage,
     fits: layout?.fits,
+    props: layout?.props !== undefined ? resolvePropsLayout(layout.props) : undefined,
   }
   await putPack(slot, record)
-  return record
+  return normalizeStoredPack(record)
 }
 
 /**
- * Update crop layout without replacing the original PNGs.
+ * Update crop + prop layout without replacing the original PNGs.
  * @param slot - local or zip.
- * @param layout - stage + fits.
+ * @param layout - stage + fits + props.
  */
 export async function saveArtPackLayout(
   slot: ArtPackSlot,
-  layout: { stage: ArtStage; fits: Partial<Record<ArtPackFile, ArtFit>> },
+  layout: ArtPackLayoutInput,
 ): Promise<StoredArtPack | null> {
   const current = await loadArtPack(slot)
   if (current === null) return null
@@ -86,10 +124,11 @@ export async function saveArtPackLayout(
     ...current,
     stage: layout.stage,
     fits: layout.fits,
+    props: resolvePropsLayout(layout.props ?? current.props),
     savedAt: Date.now(),
   }
   await putPack(slot, record)
-  return record
+  return normalizeStoredPack(record)
 }
 
 async function putPack(slot: ArtPackSlot, record: StoredArtPack): Promise<void> {
@@ -120,7 +159,7 @@ export async function loadArtPack(slot: ArtPackSlot): Promise<StoredArtPack | nu
     if (value === undefined || value === null || typeof value !== 'object') return null
     const record = value as StoredArtPack
     if (record.files === undefined || typeof record.files !== 'object') return null
-    return record
+    return normalizeStoredPack(record)
   } finally {
     db.close()
   }

@@ -6,6 +6,9 @@
 import {
   ADD_SRC, PLAQUE_SRC, POSE_SRC, STICK_SRC,
 } from './assets/poses.ts'
+import {
+  DEFAULT_PROPS_LAYOUT, serializeLayoutJson, type ArtPackLayout,
+} from './art-layout.ts'
 
 /** Filenames expected by art-pack resolution. */
 export const ART_PACK_FILES = [
@@ -61,6 +64,9 @@ ${ART_PACK_REQUIRED.map(name => `- ${name}`).join('\n')}
 Optional:
 - bump-recover.png — after a big bump, play this then idle. If missing, the
   overlay falls back to bump.png (small bump) as before.
+- layout.json — pose crop (stage/fits) plus prop placement (hotzone, stick,
+  add, plaque). The local workbench writes this; sharing it keeps remix
+  alignment intact. Safe to omit — defaults match the built-in skin.
 
 Switch the art source back to Built-in to use the packaged sprites again.
 `
@@ -177,12 +183,17 @@ export function zipStore(files: Readonly<Record<string, Uint8Array>>): Uint8Arra
 }
 
 /**
- * Zip the built-in art pack (template for 二创).
+ * Zip the built-in art pack (template for 二创), including a default layout.json.
  * @returns zip bytes and suggested download name.
  */
 export function buildBuiltinArtPackZip(): { bytes: Uint8Array; filename: string } {
   const files: Record<string, Uint8Array> = {
     'README.txt': new TextEncoder().encode(PACK_README),
+    'layout.json': new TextEncoder().encode(serializeLayoutJson({
+      stage: { width: 512, height: 512 },
+      fits: {},
+      props: DEFAULT_PROPS_LAYOUT,
+    })),
   }
   for (const name of ART_PACK_FILES) {
     files[name] = bytesFromSrc(FILE_TO_SRC[name])
@@ -190,11 +201,7 @@ export function buildBuiltinArtPackZip(): { bytes: Uint8Array; filename: string 
   return { bytes: zipStore(files), filename: 'dsh-muyu-art-pack.zip' }
 }
 
-/**
- * Trigger a browser download of the built-in art pack.
- */
-export function downloadBuiltinArtPack(): void {
-  const { bytes, filename } = buildBuiltinArtPackZip()
+function triggerZipDownload(bytes: Uint8Array, filename: string): void {
   const blob = new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer], {
     type: 'application/zip',
   })
@@ -207,4 +214,46 @@ export function downloadBuiltinArtPack(): void {
   anchor.click()
   anchor.remove()
   window.setTimeout(() => { URL.revokeObjectURL(href) }, 1_000)
+}
+
+/**
+ * Trigger a browser download of the built-in art pack.
+ */
+export function downloadBuiltinArtPack(): void {
+  const { bytes, filename } = buildBuiltinArtPackZip()
+  triggerZipDownload(bytes, filename)
+}
+
+/**
+ * Zip a stored pack (files + layout.json) for sharing a remix.
+ * @param files - pack blobs.
+ * @param layout - pose + prop layout (required for a complete share).
+ */
+export async function buildStoredArtPackZip(
+  files: Partial<Record<ArtPackFile, Blob>>,
+  layout: ArtPackLayout,
+): Promise<{ bytes: Uint8Array; filename: string }> {
+  const out: Record<string, Uint8Array> = {
+    'README.txt': new TextEncoder().encode(PACK_README),
+    'layout.json': new TextEncoder().encode(serializeLayoutJson(layout)),
+  }
+  for (const name of ART_PACK_FILES) {
+    const blob = files[name]
+    if (!(blob instanceof Blob)) continue
+    out[name] = new Uint8Array(await blob.arrayBuffer())
+  }
+  return { bytes: zipStore(out), filename: 'dsh-muyu-remix.zip' }
+}
+
+/**
+ * Download a stored local/zip pack with its layout.json.
+ * @param files - pack blobs.
+ * @param layout - full layout.
+ */
+export async function downloadStoredArtPack(
+  files: Partial<Record<ArtPackFile, Blob>>,
+  layout: ArtPackLayout,
+): Promise<void> {
+  const { bytes, filename } = await buildStoredArtPackZip(files, layout)
+  triggerZipDownload(bytes, filename)
 }
