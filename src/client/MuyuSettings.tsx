@@ -3,6 +3,7 @@
  * Writes the exclusive store; does not touch Host yaml or settingsScope.
  */
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
 import type { PropsLocale, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { downloadBuiltinArtPack } from './art-pack.ts'
@@ -252,39 +253,51 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       <h2 className={css.title}>{t('settings.title')}</h2>
 
       <section className={css.section} aria-label={t('settings.section.feel')}>
-        <h3 className={css.sectionTitle}>{t('settings.section.feel')}</h3>
+        <div className={css.sectionHead}>
+          <h3 className={css.sectionTitle}>{t('settings.section.feel')}</h3>
+        </div>
 
-        <label className={`${css.field} ${css.inline}`}>
-          <input
-            className={css.check}
-            type="checkbox"
-            checked={prefs.enabled}
-            onChange={(event) => { patch({ enabled: event.currentTarget.checked }) }}
-          />
-          <span className={css.label}>{t('settings.enabled')}</span>
-        </label>
-        <p className={css.hint}>{t('settings.enabled.hint')}</p>
-
-        <label className={css.field}>
-          <span className={css.label}>{t('settings.plaque')}</span>
-          <select
-            className={css.select}
-            value={prefs.plaque}
-            onChange={(event) => {
-              const value = event.currentTarget.value
-              if (value === 'board' || value === 'censer') patch({ plaque: value })
-            }}
-          >
-            <option value="censer">{t('settings.plaque.censer')}</option>
-            <option value="board">{t('settings.plaque.board')}</option>
-          </select>
-        </label>
-
-        <label className={css.field}>
-          <span className={css.label}>{t('settings.autoDelayMs')}</span>
-          <div className={css.controlRow}>
+        <div className={`${css.row} ${css.rowAfterHead}`}>
+          <div className={css.rowLabel}>
+            <span className={css.label}>{t('settings.enabled')}</span>
+            <span className={css.hint}>{t('settings.enabled.hint')}</span>
+          </div>
+          <div className={css.control}>
             <input
-              className={`${css.input} ${css.inputNarrow}`}
+              className={css.check}
+              type="checkbox"
+              checked={prefs.enabled}
+              onChange={(event) => { patch({ enabled: event.currentTarget.checked }) }}
+            />
+          </div>
+        </div>
+
+        <div className={css.row}>
+          <div className={css.rowLabel}>
+            <span className={css.label}>{t('settings.plaque')}</span>
+          </div>
+          <div className={css.control}>
+            <select
+              className={css.select}
+              value={prefs.plaque}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'board' || value === 'censer') patch({ plaque: value })
+              }}
+            >
+              <option value="censer">{t('settings.plaque.censer')}</option>
+              <option value="board">{t('settings.plaque.board')}</option>
+            </select>
+          </div>
+        </div>
+
+        <div className={css.row}>
+          <div className={css.rowLabel}>
+            <span className={css.label}>{t('settings.autoDelayMs')}</span>
+          </div>
+          <div className={css.control}>
+            <input
+              className={css.input}
               type="number"
               min={0}
               step={1}
@@ -293,13 +306,15 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
             />
             <span className={css.suffix}>{t('settings.ms')}</span>
           </div>
-        </label>
+        </div>
 
-        <label className={css.field}>
-          <span className={css.label}>{t('settings.autoIntervalMs')}</span>
-          <div className={css.controlRow}>
+        <div className={css.row}>
+          <div className={css.rowLabel}>
+            <span className={css.label}>{t('settings.autoIntervalMs')}</span>
+          </div>
+          <div className={css.control}>
             <input
-              className={`${css.input} ${css.inputNarrow}`}
+              className={css.input}
               type="number"
               min={1}
               step={1}
@@ -308,96 +323,125 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
             />
             <span className={css.suffix}>{t('settings.ms')}</span>
           </div>
-        </label>
+        </div>
 
-        <label className={css.field}>
-          <span className={css.label}>{t('settings.comboThreshold')}</span>
-          <input
-            className={`${css.input} ${css.inputNarrow}`}
-            type="number"
-            min={1}
-            step={1}
-            value={prefs.comboThreshold}
-            onChange={onNumber('comboThreshold')}
-          />
-        </label>
+        <div className={css.row}>
+          <div className={css.rowLabel}>
+            <span className={css.label}>{t('settings.comboThreshold')}</span>
+          </div>
+          <div className={css.control}>
+            <input
+              className={css.input}
+              type="number"
+              min={1}
+              step={1}
+              value={prefs.comboThreshold}
+              onChange={onNumber('comboThreshold')}
+            />
+          </div>
+        </div>
       </section>
 
       <section className={css.section} aria-label={t('settings.section.art')}>
-        <h3 className={css.sectionTitle}>{t('settings.section.art')}</h3>
+        <div className={css.sectionHead}>
+          <h3 className={css.sectionTitle}>{t('settings.section.art')}</h3>
+          <p className={css.sectionHint}>{t('settings.artSource.hint')}</p>
+        </div>
+
         <fieldset className={css.sourceList}>
           <legend className={css.label}>{t('settings.artSource')}</legend>
-          {ART_SOURCE_KEYS.map(([source, key]) => (
-            <label key={source} className={`${css.field} ${css.inline}`}>
-              <input
-                className={css.check}
-                type="radio"
-                name="muyu-art-source"
-                checked={prefs.artSource === source}
-                onChange={() => { patch({ artSource: source }) }}
-              />
-              <span className={css.label}>{t(key)}</span>
-            </label>
-          ))}
+          <div className={css.seg} role="radiogroup" aria-label={t('settings.artSource')}>
+            {ART_SOURCE_KEYS.map(([source, key]) => (
+              <button
+                key={source}
+                type="button"
+                className={prefs.artSource === source ? `${css.segBtn} ${css.segOn}` : css.segBtn}
+                role="radio"
+                aria-checked={prefs.artSource === source}
+                onClick={() => { patch({ artSource: source }) }}
+              >
+                {t(key)}
+              </button>
+            ))}
+          </div>
         </fieldset>
-        <p className={css.hint}>{t('settings.artSource.hint')}</p>
       </section>
 
       <section className={css.section} aria-label={t('settings.section.artLocal')}>
-        <h3 className={css.sectionTitle}>{t('settings.section.artLocal')}</h3>
-        <p className={css.hint}>{t('settings.artLocal.hint')}</p>
-        <div className={css.actions}>
-          <label className={css.fileButton}>
-            <input
-              className={css.fileInput}
-              type="file"
-              multiple
-              ref={bindDirectoryInput}
-              onChange={onLocalChange}
-            />
-            {t('settings.artLocal.folder')}
-          </label>
-          <label className={css.fileButton}>
-            <input
-              className={css.fileInput}
-              type="file"
-              accept=".png,image/png"
-              multiple
-              onChange={onLocalChange}
-            />
-            {t('settings.artLocal.files')}
-          </label>
-          <button
-            className={css.button}
+        <div className={css.sectionHead}>
+          <h3 className={css.sectionTitle}>{t('settings.section.artLocal')}</h3>
+          <p className={css.sectionHint}>{t('settings.artLocal.hint')}</p>
+        </div>
+
+        <div className={css.toolbar}>
+          <div className={css.actions}>
+            <label className={css.fileButton}>
+              <input
+                className={css.fileInput}
+                type="file"
+                multiple
+                ref={bindDirectoryInput}
+                onChange={onLocalChange}
+              />
+              {t('settings.artLocal.folder')}
+            </label>
+            <label className={css.fileButton}>
+              <input
+                className={css.fileInput}
+                type="file"
+                accept=".png,image/png"
+                multiple
+                onChange={onLocalChange}
+              />
+              {t('settings.artLocal.files')}
+            </label>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
             type="button"
             disabled={localNames.length === 0}
             onClick={onClearLocal}
           >
             {t('settings.artLocal.clear')}
-          </button>
+          </Button>
         </div>
-        <p className={css.hint}>
+        <p className={css.meta}>
           {localNames.length === 0
             ? t('settings.artLocal.empty')
-            : `${t('settings.artLocal.loaded')} ${localNames.join(', ')}`}
+            : `${t('settings.artLocal.loaded')} ${localNames.length} ${t('settings.artLocal.count')}`}
         </p>
         {importHint !== '' && (
-          <p className={importStatus === 'ok' ? css.status : `${css.status} ${css.statusError}`}>
+          <p
+            className={importStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
+            role={importStatus === 'ok' ? 'status' : 'alert'}
+          >
             {importHint}
           </p>
         )}
         {localPack !== null && localPack.stage !== undefined && (
-          <ArtWorkbench pack={localPack} t={t} onCommitLayout={onCommitLayout} />
+          <div className={css.panel}>
+            <h4 className={css.panelTitle}>{t('settings.artFit.title')}</h4>
+            <ArtWorkbench pack={localPack} t={t} onCommitLayout={onCommitLayout} />
+          </div>
         )}
       </section>
 
       <section className={css.section} aria-label={t('settings.section.artRemote')}>
-        <h3 className={css.sectionTitle}>{t('settings.section.artRemote')}</h3>
-        <p className={css.hint}>{t('settings.artRemote.hint')}</p>
-        <label className={css.field}>
-          <span className={css.label}>{t('settings.artBaseUrl')}</span>
+        <div className={css.sectionHead}>
+          <h3 className={css.sectionTitle}>{t('settings.section.artRemote')}</h3>
+          <p className={css.sectionHint}>{t('settings.artRemote.hint')}</p>
+        </div>
+
+        <div className={`${css.row} ${css.rowAfterHead}`}>
+          <div className={css.rowLabel}>
+            <span className={css.label}>{t('settings.artBaseUrl')}</span>
+            <span className={css.hint}>{t('settings.artBaseUrl.hint')}</span>
+          </div>
+        </div>
+        <div className={css.row}>
           <input
-            className={css.input}
+            className={`${css.input} ${css.inputWide}`}
             type="url"
             inputMode="url"
             autoComplete="off"
@@ -416,47 +460,53 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
               })
             }}
           />
-        </label>
-        <p className={css.hint}>{t('settings.artBaseUrl.hint')}</p>
-        <div className={css.actions}>
-          <label className={css.fileButton}>
-            <input
-              className={css.fileInput}
-              type="file"
-              accept=".zip,application/zip"
-              onChange={onZipChange}
-            />
-            {t('settings.artZip')}
-          </label>
-          <button
-            className={css.button}
+        </div>
+
+        <div className={css.toolbar}>
+          <div className={css.actions}>
+            <label className={css.fileButton}>
+              <input
+                className={css.fileInput}
+                type="file"
+                accept=".zip,application/zip"
+                onChange={onZipChange}
+              />
+              {t('settings.artZip')}
+            </label>
+            <Button variant="outline" size="sm" type="button" onClick={onExport}>
+              {t('settings.artExport')}
+            </Button>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
             type="button"
             disabled={zipNames.length === 0}
             onClick={onClearZip}
           >
             {t('settings.artZip.clear')}
-          </button>
-          <button className={css.button} type="button" onClick={onExport}>
-            {t('settings.artExport')}
-          </button>
+          </Button>
         </div>
         <p className={css.hint}>{t('settings.artZip.hint')}</p>
-        <p className={css.hint}>
+        <p className={css.meta}>
           {zipNames.length === 0
             ? t('settings.artZip.empty')
-            : `${t('settings.artZip.loaded')} ${zipNames.join(', ')}`}
+            : `${t('settings.artZip.loaded')} ${zipNames.length} ${t('settings.artLocal.count')}`}
         </p>
         <p className={css.hint}>{t('settings.artExport.hint')}</p>
         {importHint !== '' && (
-          <p className={importStatus === 'ok' ? css.status : `${css.status} ${css.statusError}`}>
+          <p
+            className={importStatus === 'ok' ? `${css.status} ${css.statusOk}` : `${css.status} ${css.statusError}`}
+            role={importStatus === 'ok' ? 'status' : 'alert'}
+          >
             {importHint}
           </p>
         )}
         {exportStatus === 'done' && (
-          <p className={css.status}>{t('settings.artExport.done')}</p>
+          <p className={`${css.status} ${css.statusOk}`} role="status">{t('settings.artExport.done')}</p>
         )}
         {exportStatus === 'fail' && (
-          <p className={`${css.status} ${css.statusError}`}>{t('settings.artExport.fail')}</p>
+          <p className={`${css.status} ${css.statusError}`} role="alert">{t('settings.artExport.fail')}</p>
         )}
       </section>
     </form>

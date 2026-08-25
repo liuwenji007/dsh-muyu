@@ -228,6 +228,7 @@ export function ArtWorkbench({ pack, t, onCommitLayout }: ArtWorkbenchProps) {
               type="button"
               role="listitem"
               className={clsx(css.thumb, name === active && css.thumbActive)}
+              aria-pressed={name === active}
               onClick={() => { setSelected(name) }}
             >
               <span className={css.thumbStage} style={{ width: THUMB_W, aspectRatio: `${stage.width} / ${stage.height}` }}>
