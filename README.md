@@ -23,6 +23,8 @@ Harness 还是 preview 版本，最近算力不够，感觉api也有点降速，
 
 手感与图源在 **设置 → 木鱼** 里改（开关、香炉/木牌、自动敲快慢、起包连击数、图源）。**本地制作** 用来做图对齐；**图库** 存放导入或存入的多个包，可随时切换；URL 给在线托管。
 
+社区图包 / 二创皮肤见 **[dsh-muyu-skins](https://github.com/liuwenji007/dsh-muyu-skins)**（导入 zip → 图库「用这套」）。
+
 ## 安装
 
 前提：本机已能跑 `dsh web`（DeepSeek Harness）。

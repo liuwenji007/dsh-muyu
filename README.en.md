@@ -20,7 +20,9 @@ Wooden-fish overlay in the lower-right of the Web client. Knock the head for mer
 - Plaque is censer or board (default censer). Exact digits through 9999, then `Nk`.
 - `prefers-reduced-motion` skips the hop and the floating +1.
 
-Tune feel and art in **Settings → Wooden fish** (on/off, plaque, auto-knock timing, combo threshold, art source). Workshop is for making; **Library** holds imported / saved packs you can switch between; URL is for hosted packs.
+Tune feel and packs in **Settings → Wooden fish**. **Library** to import/switch; **Edit** to align; remote URL for hosted packs.
+
+Community skins: **[dsh-muyu-skins](https://github.com/liuwenji007/dsh-muyu-skins)** (import zip → Library → Use).
 
 ## Install
 
