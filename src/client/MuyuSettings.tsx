@@ -771,6 +771,20 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
               const active = activeLibraryId === pack.id
               return (
                 <li key={pack.id} className={active ? `${css.libraryItem} ${css.libraryItemActive}` : css.libraryItem}>
+                  <button
+                    type="button"
+                    className={css.libraryEditBtn}
+                    aria-label={t('settings.artLibrary.edit')}
+                    title={t('settings.artLibrary.edit')}
+                    onClick={() => { askEditLibrary(pack.id, pack.label) }}
+                  >
+                    <svg className={css.libraryEditIcon} viewBox="0 0 16 16" aria-hidden="true">
+                      <path
+                        fill="currentColor"
+                        d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.18.18-.41.31-.66.37l-2.5.625a.75.75 0 0 1-.91-.91l.625-2.5c.06-.25.19-.48.37-.66l8.61-8.61Zm1.414 1.06a.25.25 0 0 0-.354 0L10.74 3.811l1.439 1.44L13.44 3.99a.25.25 0 0 0 0-.354l-1.013-1.013ZM9.74 4.811 3.439 11.11l-.47 1.88 1.88-.47 6.3-6.3-1.41-1.41Z"
+                      />
+                    </svg>
+                  </button>
                   <div className={css.libraryThumb}>
                     {thumbs[pack.id] !== undefined ? (
                       <img src={thumbs[pack.id]} alt="" draggable={false} />
@@ -819,14 +833,6 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
                         onClick={() => { onUseLibrary(pack.id) }}
                       >
                         {active ? t('settings.artLibrary.using') : t('settings.artLibrary.use')}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={() => { askEditLibrary(pack.id, pack.label) }}
-                      >
-                        {t('settings.artLibrary.edit')}
                       </Button>
                       <Button
                         variant="outline"

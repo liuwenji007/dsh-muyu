@@ -292,10 +292,11 @@
 }
 
 .libraryItem {
+  position: relative;
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  padding: 10px 12px;
+  padding: 10px 36px 10px 12px;
   border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
   border-radius: 10px;
   background: var(--dsw-alias-bg-layer-1, #fff);
@@ -354,6 +355,40 @@
 
 .libraryName:hover {
   color: var(--dsw-alias-brand-primary, #4f6ef7);
+}
+
+.libraryEditBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #8b93a1);
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.libraryEditBtn:hover {
+  color: var(--dsw-alias-brand-primary, #4f6ef7);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4f6ef7) 8%, transparent);
+}
+
+.libraryEditBtn:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
+  outline-offset: 1px;
+}
+
+.libraryEditIcon {
+  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 .dialogBackdrop {
@@ -541,7 +576,8 @@
   .select,
   .fileButton,
   .segBtn,
-  .dialogChoice {
+  .dialogChoice,
+  .libraryEditBtn {
     transition: none;
   }
 
