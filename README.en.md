@@ -30,6 +30,26 @@ Community skins: **[dsh-muyu-skins](https://github.com/liuwenji007/dsh-muyu-skin
 
 You need a working `dsh web` (DeepSeek Harness).
 
+**Requires dsh ≥ 0.1.0-rc.8 (recommend 0.1.1-rc.2).** `dsh-muyu` **0.1.5+** needs `@deepseek-ai/dsh-client-store` in the host module table.
+
+Upgrade in pairs — the market will not block a mismatched bump:
+
+| Host | This plugin | Result |
+| --- | --- | --- |
+| new (has `dsh-client-store`) | ≥ 0.1.5 | OK |
+| new | ≤ 0.1.4 | `dsh-client-runtime/client` missed the module table |
+| old (only `dsh-client-runtime/client`) | ≤ 0.1.4 | OK |
+| old | ≥ 0.1.5 | `dsh-client-store` missed the module table |
+
+**Do not bump only the fish to 0.1.5 on an old dsh** — upgrade the host first, then the plugin; or pin `dsh-muyu@0.1.4` until you can.
+
+Check the host first:
+
+```bash
+dsh --version
+# if too old: npm i -g @deepseek-ai/dsh@latest
+```
+
 ### From npm (recommended)
 
 ```bash
@@ -37,7 +57,7 @@ dsh plugin --profile web add dsh-muyu
 dsh --profile web
 ```
 
-Restart the Web client; the fish should appear in the lower-right. The published tarball already contains `lib/`, so `allowBuilds` is usually unnecessary.
+Already installed: update from Plugin Market, or `dsh plugin --profile web add dsh-muyu@latest`, then restart Web. The published tarball already contains `lib/`, so `allowBuilds` is usually unnecessary.
 
 ### From GitHub
 
@@ -73,6 +93,7 @@ dsh --profile web
 
 | If | Then |
 | --- | --- |
+| `dsh-client-runtime/client` or `dsh-client-store` missed the module table | Host/plugin mismatch: new host needs **≥ 0.1.5**; on an old host upgrade **dsh ≥ 0.1.0-rc.8** then the plugin (or pin `dsh-muyu@0.1.4`); Market update or `add dsh-muyu@…`, restart Web |
 | two overlays | The Web bundle may already ship `ui-muyu`. In the profile `cordis.patch.yml`, set `- id: ui-muyu` / `disabled: true` |
 | git install hits `allowBuilds` | See “From GitHub” above |
 | prefer a tarball | `pnpm pack`, then `dsh plugin add ./dsh-muyu-0.1.0.tgz` |
