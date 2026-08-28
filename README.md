@@ -1,6 +1,8 @@
 # dsh-muyu
 
 [![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
+[![npm version](https://img.shields.io/npm/v/dsh-muyu)](https://www.npmjs.com/package/dsh-muyu)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-muyu)](https://www.npmjs.com/package/dsh-muyu)
 
 中文 | [English](README.en.md)
 
