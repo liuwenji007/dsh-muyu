@@ -2,7 +2,7 @@
  * Wooden-fish overlay, browser half: one `shell.overlay` list entry and a
  * `settings.section` page. Prefs persist in the exclusive store, not Host yaml.
  */
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'

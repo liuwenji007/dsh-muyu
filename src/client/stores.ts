@@ -4,7 +4,7 @@
  * handles are forbidden. Overlay scope is root, so one localStorage key
  * holds prefs, merit, and LRU timestamps. Art-pack blobs live in IndexedDB.
  */
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
 import {
   normalizeMuyuStoreState, pruneMeritMaps, type MuyuStoreState,
