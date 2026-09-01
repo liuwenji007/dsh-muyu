@@ -87,7 +87,7 @@ dsh --profile web
 ### Verify and remove
 
 - Working: the fish is in the corner, or `dsh --profile web --dump-config` lists this package. A page refresh is not enough — restart `dsh web` / `dsh --profile web`.
-- Remove: `dsh plugin --profile web remove dsh-muyu`, then restart.
+- Remove: `dsh plugin --profile web remove dsh-muyu`, then restart. Remove does **not** wipe browser merit or library packs; reinstall restores them. To erase everything, use **Settings → Wooden fish → Data → Clear all wooden-fish data**.
 
 ### Troubleshooting
 
@@ -123,7 +123,7 @@ Bump hold and auto-hit pose length stay matched to the default art — edit `ART
 
 ## Notes
 
-- Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Workshop drafts and library packs live in IndexedDB (`dsh.muyu.art`), separate from the URL field. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page.
+- Merit lives in this browser's `localStorage` (`dsh.muyu.merit`), capped at the 100 most recently knocked sessions. Workshop drafts and library packs live in IndexedDB (`dsh.muyu.art`), separate from the URL field. Deleting a chat in the Host does not prune it. Private mode or quota failure only disables persistence on this page. After reinstall, if **meaningful** old data is found (merit knocked, prefs changed, or a non-empty library), you get a one-time prompt; choosing Keep using stores `dsh.muyu.dataPrompt`.
 - No dragging, so it does not cover the side panel.
 - You can also replace files under `src/client/assets/` and rebuild to ship a new default skin.
 

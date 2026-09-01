@@ -88,7 +88,7 @@ dsh --profile web
 ### 验证与卸载
 
 - 生效：右下角出现木鱼；或 `dsh --profile web --dump-config` 里能看到本包。刷新页面不够，要重启 `dsh web` / `dsh --profile web`。
-- 卸载：`dsh plugin --profile web remove dsh-muyu`，再重启。
+- 卸载：`dsh plugin --profile web remove dsh-muyu`，再重启。卸载**不会**删除浏览器里的功德与图库；重装后会恢复。若要彻底清除，请到 **设置 → 木鱼 → 数据** 使用「清除全部木鱼数据」。
 
 ### 排障
 
@@ -124,7 +124,7 @@ dsh --profile web
 
 ## 注意
 
-- 功德记在本机 `localStorage`（`dsh.muyu.merit`），最多 100 个最近敲过的会话；删掉的对话不会跟着清。制作草稿与图库包记在 IndexedDB（`dsh.muyu.art`），与 URL 分开。隐私模式或配额满了，只是本页不再保存。
+- 功德记在本机 `localStorage`（`dsh.muyu.merit`），最多 100 个最近敲过的会话；删掉的对话不会跟着清。制作草稿与图库包记在 IndexedDB（`dsh.muyu.art`），与 URL 分开。隐私模式或配额满了，只是本页不再保存。重装后若检测到**有意义的**旧数据（敲过功德、改过偏好或图库非空），会弹窗询问是否继续使用；选「继续使用」后记录在 `dsh.muyu.dataPrompt`。
 - 不能拖拽，以免挡住侧栏。
 - 也可以直接改仓库里的 `src/client/assets/` 再 build，适合做成新默认皮肤发布。
 

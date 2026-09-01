@@ -25,6 +25,15 @@ export function normalizeMuyuStoreState(draft: Partial<MuyuStoreState> & Record<
   return { prefs, bySession, touchedAt }
 }
 
+/** Default store snapshot after init or a full browser data wipe. */
+export function freshMuyuStoreState(): MuyuStoreState {
+  return normalizeMuyuStoreState({
+    prefs: resolveMuyuPrefs(),
+    bySession: {},
+    touchedAt: {},
+  })
+}
+
 /**
  * Evict the oldest merit rows until the map is at {@link MERIT_SESSION_CAP}.
  * Never drops `keepId`.

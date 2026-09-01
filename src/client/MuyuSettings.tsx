@@ -21,6 +21,7 @@ import {
 } from './art-idb.ts'
 import { resolvePropsLayout } from './art-layout.ts'
 import type { createMuyuStore } from './stores.ts'
+import { clearAllMuyuData } from './muyu-data.ts'
 import css from './MuyuSettings.module.css'
 
 /** Composed settings-page props. */
@@ -39,6 +40,7 @@ type ConfirmDialog =
     mode: 'replace' | 'new'
     name: string
   }
+  | { kind: 'clearAllData' }
 
 const ART_SOURCE_KEYS = [
   ['builtin', 'settings.artSource.builtin'],
@@ -104,6 +106,7 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
   const [localMessage, setLocalMessage] = useState('')
   const [libraryEditId, setLibraryEditId] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null)
+  const [dataClearStatus, setDataClearStatus] = useState<'idle' | 'done' | 'fail'>('idle')
   const skipLocalReload = useRef(false)
   const localPackRef = useRef(localPack)
   localPackRef.current = localPack
@@ -503,6 +506,33 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
       })
       return
     }
+    if (dialog.kind === 'clearAllData') {
+      setConfirmDialog(null)
+      void (async () => {
+        try {
+          revokeObjectUrls(thumbs)
+          await clearAllMuyuData()
+          actions.resetAll()
+          setLibrary([])
+          setLocalNames([])
+          setLocalPack(null)
+          setThumbs({})
+          setEditingId(null)
+          setEditLabel('')
+          setLibraryEditId(null)
+          setLocalMessage('')
+          setLocalStatus('idle')
+          setLibraryStatus('idle')
+          setLibraryMissing([])
+          setLocalMissing([])
+          setExportStatus('idle')
+          setDataClearStatus('done')
+        } catch {
+          setDataClearStatus('fail')
+        }
+      })()
+      return
+    }
     if (dialog.mode === 'new' && dialog.name.trim() === '') return
     setConfirmDialog(null)
     void commitSaveToLibrary(dialog.mode === 'replace', dialog.name)
@@ -582,6 +612,12 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
     const timer = window.setTimeout(() => { setExportStatus('idle') }, 2500)
     return () => { window.clearTimeout(timer) }
   }, [exportStatus])
+
+  useEffect(() => {
+    if (dataClearStatus !== 'done') return
+    const timer = window.setTimeout(() => { setDataClearStatus('idle') }, 2500)
+    return () => { window.clearTimeout(timer) }
+  }, [dataClearStatus])
 
   const statusHint = (status: ImportStatus, missing: string[]) => (
     status === 'ok'
@@ -1007,6 +1043,28 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
         <p className={css.hint}>{t('settings.artExport.hint')}</p>
       </section>
 
+      <section className={css.section} aria-label={t('settings.section.data')}>
+        <div className={css.sectionHead}>
+          <h3 className={css.sectionTitle}>{t('settings.section.data')}</h3>
+          <p className={css.sectionHint}>{t('settings.data.hint')}</p>
+        </div>
+        <div className={css.toolbar}>
+          <button
+            className={css.dangerBtn}
+            type="button"
+            onClick={() => { setConfirmDialog({ kind: 'clearAllData' }) }}
+          >
+            {t('settings.data.clear')}
+          </button>
+        </div>
+        {dataClearStatus === 'done' && (
+          <p className={`${css.status} ${css.statusOk}`} role="status">{t('settings.data.clearDone')}</p>
+        )}
+        {dataClearStatus === 'fail' && (
+          <p className={`${css.status} ${css.statusError}`} role="alert">{t('settings.data.clearFail')}</p>
+        )}
+      </section>
+
       {confirmDialog !== null && (
         <div
           className={css.dialogBackdrop}
@@ -1040,6 +1098,23 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
                   <Button variant="primary" size="sm" type="button" onClick={onConfirmDialog}>
                     {t('settings.artLibrary.editConfirm.ok')}
                   </Button>
+                </div>
+              </>
+            ) : confirmDialog.kind === 'clearAllData' ? (
+              <>
+                <div className={css.dialogHead}>
+                  <h4 className={css.dialogTitle} id="muyu-confirm-title">
+                    {t('settings.data.clearConfirm.title')}
+                  </h4>
+                  <p className={css.dialogBody}>{t('settings.data.clearConfirm.body')}</p>
+                </div>
+                <div className={css.dialogActions}>
+                  <Button variant="outline" size="sm" type="button" onClick={() => { setConfirmDialog(null) }}>
+                    {t('settings.confirm.cancel')}
+                  </Button>
+                  <button className={css.dangerBtn} type="button" onClick={onConfirmDialog}>
+                    {t('settings.data.clearConfirm.ok')}
+                  </button>
                 </div>
               </>
             ) : (

@@ -6,7 +6,7 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import { MuyuWidget } from './MuyuWidget.tsx'
+import { MuyuOverlay } from './MuyuOverlay.tsx'
 import { MuyuSettings } from './MuyuSettings.tsx'
 import { createMuyuStore } from './stores.ts'
 import { en, zh, type MuyuKey } from './locales.ts'
@@ -64,7 +64,7 @@ export function apply(ctx: ClientContext): void {
     order: 50,
     locale: NS,
     store,
-  }, MuyuWidget))
+  }, MuyuOverlay))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

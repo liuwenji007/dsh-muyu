@@ -417,3 +417,65 @@ export function defaultLibraryLabel(hint?: string): string {
   const stamp = new Date().toLocaleString()
   return base !== '' ? base : `导入 ${stamp}`
 }
+
+/** IndexedDB database name for art packs (exported for data lifecycle helpers). */
+export const ART_DB_NAME = DB_NAME
+
+async function countObjectStore(db: IDBDatabase, name: string): Promise<number> {
+  if (!db.objectStoreNames.contains(name)) return 0
+  return requestToPromise(db.transaction(name, 'readonly').objectStore(name).count())
+}
+
+/**
+ * Whether the art database exists and holds at least one pack or library entry.
+ */
+export async function artDbHasContent(): Promise<boolean> {
+  if (idbFactory() === undefined) return false
+  try {
+    const db = await openDb()
+    try {
+      const [packs, library] = await Promise.all([
+        countObjectStore(db, STORE),
+        countObjectStore(db, LIBRARY),
+      ])
+      return packs > 0 || library > 0
+    } finally {
+      db.close()
+    }
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Drop the entire art database (working pack + library). Resolves when deletion completes.
+ */
+const DELETE_DB_TIMEOUT_MS = 15_000
+
+export async function deleteEntireArtDatabase(): Promise<void> {
+  const factory = idbFactory()
+  if (factory === undefined) return
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      reject(new Error('IndexedDB delete timed out'))
+    }, DELETE_DB_TIMEOUT_MS)
+    const finish = (error?: Error): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (error === undefined) resolve()
+      else reject(error)
+    }
+    const req = factory.deleteDatabase(DB_NAME)
+    req.onsuccess = () => { finish() }
+    req.onerror = () => {
+      finish(req.error ?? new Error('IndexedDB delete failed'))
+    }
+    req.onblocked = () => {
+      // Deletion proceeds once open connections close.
+    }
+  })
+}

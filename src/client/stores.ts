@@ -6,20 +6,20 @@
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
+import { MUYU_MERIT_PERSIST_KEY } from './muyu-data.ts'
 import {
-  normalizeMuyuStoreState, pruneMeritMaps, type MuyuStoreState,
+  freshMuyuStoreState, normalizeMuyuStoreState, pruneMeritMaps, type MuyuStoreState,
 } from './merit-map.ts'
 
-export { MERIT_SESSION_CAP, normalizeMuyuStoreState, pruneMeritMaps } from './merit-map.ts'
+export { MERIT_SESSION_CAP, freshMuyuStoreState, normalizeMuyuStoreState, pruneMeritMaps } from './merit-map.ts'
 export type { MuyuStoreState } from './merit-map.ts'
-
-/** localStorage key for {@link createMuyuStore} (root-scoped exclusive instance). */
-export const MUYU_MERIT_PERSIST_KEY = 'dsh.muyu.merit'
+export { MUYU_MERIT_PERSIST_KEY } from './muyu-data.ts'
 
 /** Write set for {@link createMuyuStore}. */
 type MuyuStoreActions = {
   addMerit: (draft: MuyuStoreState, sessionId: string, delta: number, now?: number) => void
   setPrefs: (draft: MuyuStoreState, patch: MuyuPrefs) => void
+  resetAll: (draft: MuyuStoreState) => void
 }
 
 /**
@@ -58,6 +58,12 @@ export function createMuyuStore(): EngineStoreHandle<MuyuStoreState, MuyuStoreAc
         } catch {
           draft.prefs = state.prefs
         }
+      },
+      resetAll: (draft) => {
+        const fresh = freshMuyuStoreState()
+        draft.prefs = fresh.prefs
+        draft.bySession = fresh.bySession
+        draft.touchedAt = fresh.touchedAt
       },
     },
   })

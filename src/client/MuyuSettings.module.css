@@ -555,6 +555,32 @@
   background: color-mix(in srgb, var(--dsw-alias-bg-layer-2, #f7f8fa) 70%, #fff);
 }
 
+.dangerBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, #dc2626 35%, #e5e7eb);
+  background: color-mix(in srgb, #dc2626 8%, #fff);
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.dangerBtn:hover {
+  background: color-mix(in srgb, #dc2626 14%, #fff);
+  border-color: color-mix(in srgb, #dc2626 45%, #e5e7eb);
+}
+
+.dangerBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @keyframes dialogFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
