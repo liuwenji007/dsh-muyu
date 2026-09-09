@@ -3,16 +3,55 @@
   right: 4px;
   /* Clears the composer stack; 152px is the shared first-paint fallback. */
   bottom: calc(var(--dsh-composer-height, 152px) + 16px);
-  z-index: 21;
+  z-index: 40;
   display: flex;
   align-items: flex-end;
-  /* gap: 8px; */
   pointer-events: auto;
+}
+
+.root[data-unlocked] {
+  cursor: move;
+  touch-action: none;
+  outline: 1px dashed color-mix(in srgb, currentColor 35%, transparent);
+  outline-offset: 4px;
 }
 
 .stage {
   position: relative;
   line-height: 0;
+}
+
+.lock {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #1e3a56 28%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, #f7f3ea 92%, #1e3a56);
+  color: #1e3a56;
+  cursor: pointer;
+  box-shadow: 0 1px 2px color-mix(in srgb, #1e3a56 18%, transparent);
+}
+
+.lock:hover {
+  background: #f7f3ea;
+}
+
+.lock[aria-pressed='true'] {
+  border-color: color-mix(in srgb, #1e3a56 45%, transparent);
+}
+
+.lockIcon {
+  display: block;
+  width: 12px;
+  height: 12px;
 }
 
 .sprite {
@@ -40,7 +79,7 @@
   margin: 0;
   pointer-events: none;
   user-select: none;
-  z-index: 22;
+  z-index: 41;
 }
 
 .plaque {

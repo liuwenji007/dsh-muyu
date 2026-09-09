@@ -17,6 +17,7 @@ Wooden-fish overlay in the lower-right of the Web client. Knock the head for mer
 ## Play
 
 - Click the head: +1 merit. Enough knocks in a row and she bumps.
+- Use the lock chip to unlock, drag, then lock again; Settings can hide the chip.
 - While the current session is busy: auto-knocks also score (about 1 merit per second by default).
 - Switch session: the plaque shows that session's count (0 if unseen); pose resets.
 - Plaque is censer or board (default censer). Exact digits through 9999, then `Nk`.

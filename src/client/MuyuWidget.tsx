@@ -1,7 +1,7 @@
 /**
  * Wooden-fish overlay: character sprite, head hot zone, and session merit plaque.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 import clsx from 'clsx'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -10,6 +10,14 @@ import { initialMuyuState, stepMuyu, type MuyuEvent, type MuyuPose } from './muy
 import { useMuyuArt } from './use-muyu-art.ts'
 import type { createMuyuStore } from './stores.ts'
 import type { MuyuKey } from './locales.ts'
+import {
+  applyPointerDelta,
+  clampPosition,
+  isCustomPosition,
+  roundPosition,
+  shouldCommitDrag,
+  type MuyuPosition,
+} from './position.ts'
 import css from './MuyuWidget.module.css'
 
 const POSE_ALT: Readonly<Record<MuyuPose, MuyuKey>> = {
@@ -41,6 +49,30 @@ export type MuyuWidgetProps =
   & PropsRuntime<'shell.overlay'>
   & PropsStore<ReturnType<typeof createMuyuStore>>
   & PropsLocale<'muyu'>
+
+type DragSession = {
+  pointerId: number
+  lastX: number
+  lastY: number
+  originX: number
+  originY: number
+  pos: MuyuPosition
+}
+
+/**
+ * Convert a layout rect into viewport-edge distances.
+ * @param rect - element bounding box in viewport coordinates.
+ */
+function positionFromRect(rect: DOMRectReadOnly): MuyuPosition {
+  return {
+    rightPx: window.innerWidth - rect.right,
+    bottomPx: window.innerHeight - rect.bottom,
+  }
+}
+
+function samePosition(a: MuyuPosition, b: MuyuPosition): boolean {
+  return a.rightPx === b.rightPx && a.bottomPx === b.bottomPx
+}
 
 /**
  * Frame-corner wooden fish.
@@ -74,6 +106,16 @@ export function MuyuWidget({
     const map = s.bySession ?? {}
     return sessionId === undefined ? 0 : (map[sessionId] ?? 0)
   })
+  const storedPos = useMemo(
+    (): MuyuPosition => ({
+      rightPx: tunables.positionRightPx,
+      bottomPx: tunables.positionBottomPx,
+    }),
+    [tunables.positionRightPx, tunables.positionBottomPx],
+  )
+  const customPlacement = isCustomPosition(storedPos)
+  const [locked, setLocked] = useState(true)
+  const [livePos, setLivePos] = useState<MuyuPosition | null>(null)
   const [machine, setMachine] = useState(initialMuyuState)
   const [plaquePop, setPlaquePop] = useState(false)
   const [floats, setFloats] = useState<number[]>([])
@@ -87,10 +129,14 @@ export function MuyuWidget({
   const runningRef = useRef(running)
   const tunablesRef = useRef(tunables)
   const actionsRef = useRef(actions)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const dragRef = useRef<DragSession | null>(null)
+  const storedPosRef = useRef(storedPos)
   sessionIdRef.current = sessionId
   runningRef.current = running
   tunablesRef.current = tunables
   actionsRef.current = actions
+  storedPosRef.current = storedPos
 
   const applyEvent = useCallback((event: MuyuEvent) => {
     const result = stepMuyu(machineRef.current, event, tunablesRef.current)
@@ -140,7 +186,77 @@ export function MuyuWidget({
     return () => { window.clearInterval(id) }
   }, [applyEvent])
 
+  useEffect(() => {
+    if (!tunables.showLockButton) setLocked(true)
+  }, [tunables.showLockButton])
+
+  // Drop live follow once prefs catch up, so we do not flash back to composer CSS.
+  useEffect(() => {
+    if (livePos === null) return
+    if (dragRef.current !== null) return
+    if (samePosition(livePos, storedPos)) setLivePos(null)
+  }, [livePos, storedPos])
+
+  const persistClamped = useCallback((pos: MuyuPosition, widgetW: number, widgetH: number) => {
+    const next = clampPosition(pos, {
+      viewportW: window.innerWidth,
+      viewportH: window.innerHeight,
+      widgetW,
+      widgetH,
+    })
+    const prev = storedPosRef.current
+    if (samePosition(next, prev)) return next
+    actionsRef.current.setPrefs({
+      positionRightPx: next.rightPx,
+      positionBottomPx: next.bottomPx,
+    })
+    return next
+  }, [])
+
+  useEffect(() => {
+    if (!tunables.enabled) return
+
+    const ensureVisible = () => {
+      if (dragRef.current !== null) return
+      const el = rootRef.current
+      if (el === null) return
+      const rect = el.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      const absolute = positionFromRect(rect)
+      const custom = isCustomPosition(storedPosRef.current)
+      if (!custom) {
+        const clamped = clampPosition(absolute, {
+          viewportW: window.innerWidth,
+          viewportH: window.innerHeight,
+          widgetW: rect.width,
+          widgetH: rect.height,
+        })
+        // Compare against rounded absolute so subpixels alone do not pin placement.
+        if (!samePosition(clamped, roundPosition(absolute))) {
+          actionsRef.current.setPrefs({
+            positionRightPx: clamped.rightPx,
+            positionBottomPx: clamped.bottomPx,
+          })
+        }
+        return
+      }
+      persistClamped(storedPosRef.current, rect.width, rect.height)
+    }
+
+    const frame = window.requestAnimationFrame(ensureVisible)
+    window.addEventListener('resize', ensureVisible)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.removeEventListener('resize', ensureVisible)
+    }
+  }, [tunables.enabled, persistClamped, storedPos])
+
   if (!tunables.enabled) return null
+
+  const displayPos = livePos ?? (customPlacement ? storedPos : null)
+  const rootStyle: CSSProperties | undefined = displayPos === null
+    ? undefined
+    : { right: `${displayPos.rightPx}px`, bottom: `${displayPos.bottomPx}px` }
 
   const followStick = (event: PointerEvent<HTMLButtonElement>) => {
     setStickAt({
@@ -171,9 +287,118 @@ export function MuyuWidget({
     applyEvent({ type: 'pointerUp', now: Date.now() })
   }
 
+  const endDrag = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (drag === null || drag.pointerId !== event.pointerId) return
+    dragRef.current = null
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+    } catch {
+      // jsdom pointer-capture stubs may throw.
+    }
+
+    const travel = Math.hypot(event.clientX - drag.originX, event.clientY - drag.originY)
+    const alreadyCustom = isCustomPosition(storedPosRef.current)
+    if (!shouldCommitDrag(travel)) {
+      // Click / tiny nudge must not pin composer-anchored placement.
+      setLivePos(alreadyCustom ? storedPosRef.current : null)
+      return
+    }
+
+    const el = rootRef.current
+    const rect = el?.getBoundingClientRect()
+    if (rect === undefined || rect.width <= 0 || rect.height <= 0) {
+      setLivePos(alreadyCustom ? storedPosRef.current : null)
+      return
+    }
+    const next = persistClamped(positionFromRect(rect), rect.width, rect.height)
+    setLivePos(next)
+  }
+
+  const onRootPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (locked) return
+    if (event.button !== 0) return
+    const target = event.target
+    if (target instanceof Element && target.closest('[data-muyu-lock]')) return
+    const el = rootRef.current
+    if (el === null) return
+    event.preventDefault()
+    const start = positionFromRect(el.getBoundingClientRect())
+    dragRef.current = {
+      pointerId: event.pointerId,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      originX: event.clientX,
+      originY: event.clientY,
+      pos: start,
+    }
+    setLivePos(start)
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // jsdom pointer-capture stubs may throw.
+    }
+  }
+
+  const onRootPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (drag === null || drag.pointerId !== event.pointerId) return
+    const dx = event.clientX - drag.lastX
+    const dy = event.clientY - drag.lastY
+    const next = applyPointerDelta(drag.pos, dx, dy)
+    drag.lastX = event.clientX
+    drag.lastY = event.clientY
+    drag.pos = next
+    setLivePos(next)
+  }
+
   return (
-    <div className={css.root} data-pose={machine.pose}>
+    <div
+      ref={rootRef}
+      className={css.root}
+      data-pose={machine.pose}
+      data-unlocked={locked ? undefined : ''}
+      style={rootStyle}
+      onPointerDown={onRootPointerDown}
+      onPointerMove={onRootPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
       <div className={css.stage}>
+        {tunables.showLockButton && (
+          <button
+            type="button"
+            className={css.lock}
+            data-muyu-lock=""
+            aria-pressed={!locked}
+            aria-label={locked ? t('lock.aria') : t('unlock.aria')}
+            onPointerDown={(event) => {
+              event.stopPropagation()
+            }}
+            onClick={(event) => {
+              event.stopPropagation()
+              setLocked(prev => !prev)
+            }}
+          >
+            {locked ? (
+              <svg className={css.lockIcon} viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm1 5H7V4a1 1 0 1 1 2 0v2z"
+                />
+              </svg>
+            ) : (
+              <svg className={css.lockIcon} viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M8 1a3 3 0 0 0-3 3h2a1 1 0 1 1 2 0 1 1 0 0 1 1 1h2a3 3 0 0 0-4-2.83V4a3 3 0 0 0-3-3zm-4 6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H4z"
+                />
+              </svg>
+            )}
+          </button>
+        )}
         <img
           className={css.sprite}
           src={poseSrc[machine.pose]}
@@ -188,8 +413,10 @@ export function MuyuWidget({
             left: `${propsLayout.hotzone.left}%`,
             width: `${propsLayout.hotzone.width}%`,
             height: `${propsLayout.hotzone.height}%`,
+            pointerEvents: locked ? undefined : 'none',
           }}
           aria-label={t('knock.aria')}
+          tabIndex={locked ? 0 : -1}
           onPointerDown={onPointerDown}
           onPointerUp={onPointerUp}
           onPointerCancel={(event) => {
@@ -247,7 +474,7 @@ export function MuyuWidget({
           <span className={css.plaqueValue}>{formatPlaqueMerit(merit)}</span>
         </div>
       </div>
-      {stickAt !== null && (
+      {locked && stickAt !== null && (
         <img
           className={css.stickCursor}
           src={stickSrc}

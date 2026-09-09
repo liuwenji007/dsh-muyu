@@ -3,6 +3,8 @@
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'knock.aria': '敲木鱼',
+  'lock.aria': '解锁以拖动木鱼',
+  'unlock.aria': '锁定木鱼位置',
   'plaque.aria': '当前会话功德',
   'pose.idle': '基础',
   'pose.autoHit': '自动敲',
@@ -19,6 +21,8 @@ export const zh = {
   'settings.section.artRemote': '远程图包',
   'settings.enabled': '显示木鱼',
   'settings.enabled.hint': '控制是否展示木鱼，可随时修改',
+  'settings.showLockButton': '显示锁定按钮',
+  'settings.showLockButton.hint': '关掉后无法拖动；要再挪位置需先重新打开',
   'settings.plaque': '功德牌',
   'settings.plaque.censer': '香炉',
   'settings.plaque.board': '木牌',
@@ -129,6 +133,8 @@ export type MuyuKey = keyof typeof zh
 /** English dictionary, checked complete against the zh key set. */
 export const en = {
   'knock.aria': 'Knock the wooden fish',
+  'lock.aria': 'Unlock to move the wooden fish',
+  'unlock.aria': 'Lock the wooden fish in place',
   'plaque.aria': 'Session merit',
   'pose.idle': 'Base',
   'pose.autoHit': 'Auto knock',
@@ -145,6 +151,8 @@ export const en = {
   'settings.section.artRemote': 'Remote pack',
   'settings.enabled': 'Show wooden fish',
   'settings.enabled.hint': 'Show or hide the wooden fish; you can change this anytime.',
+  'settings.showLockButton': 'Show lock button',
+  'settings.showLockButton.hint': 'When hidden you cannot drag; turn it back on to move again.',
   'settings.plaque': 'Merit plaque',
   'settings.plaque.censer': 'Censer',
   'settings.plaque.board': 'Board',

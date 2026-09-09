@@ -39,6 +39,9 @@ describe('resolveMuyuConfig', () => {
       artBaseUrl: '',
       artPackId: '',
       artPackRev: 0,
+      positionRightPx: 0,
+      positionBottomPx: 0,
+      showLockButton: true,
       hasBumpRecover: true,
     })
   })

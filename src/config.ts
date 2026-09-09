@@ -35,6 +35,18 @@ export interface MuyuPrefs {
   artPackId?: string
   /** Bumped when a local or library pack is saved or cleared so the overlay reloads. */
   artPackRev?: number
+  /**
+   * Distance from the viewport right edge in px when customized.
+   * Both axes 0 means default composer-anchored placement.
+   */
+  positionRightPx?: number
+  /**
+   * Distance from the viewport bottom edge in px when customized.
+   * Both axes 0 means default composer-anchored placement.
+   */
+  positionBottomPx?: number
+  /** When false, the overlay lock chip is hidden; position stays locked. */
+  showLockButton?: boolean
 }
 
 /** User-facing prefs after schema defaults. */
@@ -48,6 +60,9 @@ export type ResolvedMuyuPrefs = {
   readonly artBaseUrl: string
   readonly artPackId: string
   readonly artPackRev: number
+  readonly positionRightPx: number
+  readonly positionBottomPx: number
+  readonly showLockButton: boolean
 }
 
 /** Art-locked timings and cursor hotspot, keyed to the shipped sprites. */
@@ -132,6 +147,20 @@ export const Prefs: z<MuyuPrefs> = z.object({
     .min(0)
     .default(0)
     .description('Local/library pack generation; overlay reloads when this changes'),
+  positionRightPx: z
+    .number()
+    .step(1)
+    .default(0)
+    .description('Custom viewport-right distance in px; 0 with bottom 0 keeps composer anchor'),
+  positionBottomPx: z
+    .number()
+    .step(1)
+    .default(0)
+    .description('Custom viewport-bottom distance in px; 0 with right 0 keeps composer anchor'),
+  showLockButton: z
+    .boolean()
+    .default(true)
+    .description('Show the overlay lock chip used to unlock and drag'),
 })
 
 /**
@@ -172,6 +201,9 @@ export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
     artBaseUrl: input.artBaseUrl,
     artPackId: input.artPackId,
     artPackRev: input.artPackRev,
+    positionRightPx: input.positionRightPx,
+    positionBottomPx: input.positionBottomPx,
+    showLockButton: input.showLockButton,
   })
   return {
     ...prefs,

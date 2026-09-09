@@ -668,6 +668,21 @@ export function MuyuSettings({ useStore, actions, t }: MuyuSettingsProps) {
 
         <div className={css.row}>
           <div className={css.rowLabel}>
+            <span className={css.label}>{t('settings.showLockButton')}</span>
+            <span className={css.hint}>{t('settings.showLockButton.hint')}</span>
+          </div>
+          <div className={css.control}>
+            <input
+              className={css.check}
+              type="checkbox"
+              checked={prefs.showLockButton}
+              onChange={(event) => { patch({ showLockButton: event.currentTarget.checked }) }}
+            />
+          </div>
+        </div>
+
+        <div className={css.row}>
+          <div className={css.rowLabel}>
             <span className={css.label}>{t('settings.plaque')}</span>
           </div>
           <div className={css.control}>

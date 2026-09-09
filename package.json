@@ -1,6 +1,6 @@
 {
   "name": "dsh-muyu",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "DeepSeek Harness Web overlay: knockable wooden-fish sprite and per-session merit plaque",
   "license": "MIT",
   "type": "module",
