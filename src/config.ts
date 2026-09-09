@@ -47,6 +47,8 @@ export interface MuyuPrefs {
   positionBottomPx?: number
   /** When false, the overlay lock chip is hidden; position stays locked. */
   showLockButton?: boolean
+  /** Overlay display scale; 1 is the default sprite size. */
+  scale?: number
 }
 
 /** User-facing prefs after schema defaults. */
@@ -63,6 +65,7 @@ export type ResolvedMuyuPrefs = {
   readonly positionRightPx: number
   readonly positionBottomPx: number
   readonly showLockButton: boolean
+  readonly scale: number
 }
 
 /** Art-locked timings and cursor hotspot, keyed to the shipped sprites. */
@@ -161,6 +164,13 @@ export const Prefs: z<MuyuPrefs> = z.object({
     .boolean()
     .default(true)
     .description('Show the overlay lock chip used to unlock and drag'),
+  scale: z
+    .number()
+    .step(0.01)
+    .min(0.6)
+    .max(1.4)
+    .default(1)
+    .description('Overlay display scale (0.6–1.4)'),
 })
 
 /**
@@ -204,6 +214,7 @@ export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
     positionRightPx: input.positionRightPx,
     positionBottomPx: input.positionBottomPx,
     showLockButton: input.showLockButton,
+    scale: input.scale,
   })
   return {
     ...prefs,

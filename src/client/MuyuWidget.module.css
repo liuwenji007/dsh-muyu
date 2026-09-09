@@ -22,9 +22,9 @@
 }
 
 .lock {
-  position: absolute;
-  top: -6px;
-  right: -6px;
+  position: relative;
+  top: auto;
+  right: auto;
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -38,18 +38,51 @@
   color: #1e3a56;
   cursor: pointer;
   box-shadow: 0 1px 2px color-mix(in srgb, #1e3a56 18%, transparent);
+}
+
+.chrome {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 180ms ease;
 }
 
-.root[data-lock-chrome] .lock {
+.root[data-lock-chrome] .chrome {
   opacity: 1;
   pointer-events: auto;
 }
 
+.scaleBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #1e3a56 28%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, #f7f3ea 92%, #1e3a56);
+  color: #1e3a56;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px color-mix(in srgb, #1e3a56 18%, transparent);
+}
+
+.scaleBtn:hover:not(:disabled),
 .lock:hover {
   background: #f7f3ea;
+}
+
+.scaleBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .lock[aria-pressed='true'] {
@@ -144,7 +177,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lock {
+  .chrome {
     transition: none;
   }
 

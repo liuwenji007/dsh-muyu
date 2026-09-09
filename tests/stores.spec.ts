@@ -22,6 +22,7 @@ describe('resolveMuyuPrefs', () => {
       positionRightPx: 0,
       positionBottomPx: 0,
       showLockButton: true,
+      scale: 1,
     })
   })
 

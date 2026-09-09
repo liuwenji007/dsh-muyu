@@ -2,6 +2,7 @@
  * Wooden-fish overlay: character sprite, head hot zone, and session merit plaque.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
@@ -18,6 +19,7 @@ import {
   shouldCommitDrag,
   type MuyuPosition,
 } from './position.ts'
+import { clampScale, nudgeScale, SCALE_MAX, SCALE_MIN, SCALE_STEP } from './scale.ts'
 import css from './MuyuWidget.module.css'
 
 const POSE_ALT: Readonly<Record<MuyuPose, MuyuKey>> = {
@@ -288,12 +290,42 @@ export function MuyuWidget({
     }
   }, [tunables.enabled, persistClamped, storedPos])
 
+  useEffect(() => {
+    if (!tunables.enabled) return
+    const el = rootRef.current
+    if (el === null) return
+    const onWheel = (event: WheelEvent) => {
+      if (lockedRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      const current = tunablesRef.current.scale
+      const next = nudgeScale(current, event.deltaY > 0 ? -SCALE_STEP : SCALE_STEP)
+      if (next === current) return
+      revealLockChrome()
+      actionsRef.current.setPrefs({ scale: next })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => { el.removeEventListener('wheel', onWheel) }
+  }, [tunables.enabled, revealLockChrome])
+
   if (!tunables.enabled) return null
 
   const displayPos = livePos ?? (customPlacement ? storedPos : null)
-  const rootStyle: CSSProperties | undefined = displayPos === null
-    ? undefined
-    : { right: `${displayPos.rightPx}px`, bottom: `${displayPos.bottomPx}px` }
+  const scale = clampScale(tunables.scale)
+  const rootStyle: CSSProperties = {
+    transformOrigin: 'bottom right',
+    ...(scale !== 1 ? { transform: `scale(${scale})` } : {}),
+    ...(displayPos === null
+      ? {}
+      : { right: `${displayPos.rightPx}px`, bottom: `${displayPos.bottomPx}px` }),
+  }
+
+  const setScaleBy = (delta: number) => {
+    if (locked) return
+    const next = nudgeScale(tunables.scale, delta)
+    if (next === tunables.scale) return
+    actions.setPrefs({ scale: next })
+  }
 
   const followStick = (event: PointerEvent<HTMLButtonElement>) => {
     setStickAt({
@@ -358,7 +390,7 @@ export function MuyuWidget({
     if (locked) return
     if (event.button !== 0) return
     const target = event.target
-    if (target instanceof Element && target.closest('[data-muyu-lock]')) return
+    if (target instanceof Element && target.closest('[data-muyu-chrome]')) return
     const el = rootRef.current
     if (el === null) return
     event.preventDefault()
@@ -414,38 +446,73 @@ export function MuyuWidget({
     >
       <div className={css.stage}>
         {tunables.showLockButton && (
-          <button
-            type="button"
-            className={css.lock}
-            data-muyu-lock=""
-            tabIndex={lockChromeVisible ? 0 : -1}
-            aria-hidden={!lockChromeVisible}
-            aria-pressed={!locked}
-            aria-label={locked ? t('lock.aria') : t('unlock.aria')}
-            onPointerDown={(event) => {
-              event.stopPropagation()
-            }}
-            onClick={(event) => {
-              event.stopPropagation()
-              setLocked(prev => !prev)
-            }}
+          <div
+            className={css.chrome}
+            data-muyu-chrome=""
+            onPointerDown={(event) => { event.stopPropagation() }}
           >
-            {locked ? (
-              <svg className={css.lockIcon} viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm1 5H7V4a1 1 0 1 1 2 0v2z"
-                />
-              </svg>
-            ) : (
-              <svg className={css.lockIcon} viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M8 1a3 3 0 0 0-3 3h2a1 1 0 1 1 2 0 1 1 0 0 1 1 1h2a3 3 0 0 0-4-2.83V4a3 3 0 0 0-3-3zm-4 6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H4z"
-                />
-              </svg>
+            {!locked && (
+              <button
+                type="button"
+                className={css.scaleBtn}
+                tabIndex={lockChromeVisible ? 0 : -1}
+                aria-hidden={!lockChromeVisible}
+                aria-label={t('scale.down.aria')}
+                disabled={scale <= SCALE_MIN}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setScaleBy(-SCALE_STEP)
+                }}
+              >
+                −
+              </button>
             )}
-          </button>
+            <button
+              type="button"
+              className={css.lock}
+              data-muyu-lock=""
+              tabIndex={lockChromeVisible ? 0 : -1}
+              aria-hidden={!lockChromeVisible}
+              aria-pressed={!locked}
+              aria-label={locked ? t('lock.aria') : t('unlock.aria')}
+              onClick={(event) => {
+                event.stopPropagation()
+                setLocked(prev => !prev)
+              }}
+            >
+              {locked ? (
+                <svg className={css.lockIcon} viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M8 1a3 3 0 0 0-3 3v2H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm1 5H7V4a1 1 0 1 1 2 0v2z"
+                  />
+                </svg>
+              ) : (
+                <svg className={css.lockIcon} viewBox="0 0 16 16" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M8 1a3 3 0 0 0-3 3h2a1 1 0 1 1 2 0 1 1 0 0 1 1 1h2a3 3 0 0 0-4-2.83V4a3 3 0 0 0-3-3zm-4 6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H4z"
+                  />
+                </svg>
+              )}
+            </button>
+            {!locked && (
+              <button
+                type="button"
+                className={css.scaleBtn}
+                tabIndex={lockChromeVisible ? 0 : -1}
+                aria-hidden={!lockChromeVisible}
+                aria-label={t('scale.up.aria')}
+                disabled={scale >= SCALE_MAX}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setScaleBy(SCALE_STEP)
+                }}
+              >
+                +
+              </button>
+            )}
+          </div>
         )}
         <img
           className={css.sprite}
@@ -522,7 +589,7 @@ export function MuyuWidget({
           <span className={css.plaqueValue}>{formatPlaqueMerit(merit)}</span>
         </div>
       </div>
-      {locked && stickAt !== null && (
+      {locked && stickAt !== null && createPortal(
         <img
           className={css.stickCursor}
           src={stickSrc}
@@ -536,7 +603,8 @@ export function MuyuWidget({
             maxWidth: propsLayout.stick.maxPx,
             maxHeight: propsLayout.stick.maxPx,
           }}
-        />
+        />,
+        document.body,
       )}
     </div>
   )
