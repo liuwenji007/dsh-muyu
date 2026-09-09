@@ -38,6 +38,14 @@
   color: #1e3a56;
   cursor: pointer;
   box-shadow: 0 1px 2px color-mix(in srgb, #1e3a56 18%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.root[data-lock-chrome] .lock {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .lock:hover {
@@ -136,6 +144,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .lock {
+    transition: none;
+  }
+
   .plaquePop .plaqueValue {
     transform: none;
   }

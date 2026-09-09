@@ -32,6 +32,8 @@ const POSE_ALT: Readonly<Record<MuyuPose, MuyuKey>> = {
 const TICK_MS = 50
 const PLAQUE_POP_MS = 180
 const MERIT_FLOAT_MS = 800
+/** Hide the lock chip after the pointer leaves the overlay. */
+const LOCK_CHROME_HIDE_MS = 2500
 /** Exact digits stay on the plaque below this; at and above it they become `Nk`. */
 const PLAQUE_K_AT = 10_000
 
@@ -115,6 +117,7 @@ export function MuyuWidget({
   )
   const customPlacement = isCustomPosition(storedPos)
   const [locked, setLocked] = useState(true)
+  const [lockChromeVisible, setLockChromeVisible] = useState(true)
   const [livePos, setLivePos] = useState<MuyuPosition | null>(null)
   const [machine, setMachine] = useState(initialMuyuState)
   const [plaquePop, setPlaquePop] = useState(false)
@@ -123,6 +126,9 @@ export function MuyuWidget({
   const floatSeq = useRef(0)
   const floatTimers = useRef(new Set<number>())
   const popTimer = useRef<number | undefined>(undefined)
+  const lockHideTimer = useRef<number | undefined>(undefined)
+  const hoveringRef = useRef(false)
+  const lockedRef = useRef(true)
   const reducedMotion = useRef(false)
   const machineRef = useRef(machine)
   const sessionIdRef = useRef(sessionId)
@@ -137,6 +143,27 @@ export function MuyuWidget({
   tunablesRef.current = tunables
   actionsRef.current = actions
   storedPosRef.current = storedPos
+  lockedRef.current = locked
+
+  const clearLockHideTimer = useCallback(() => {
+    if (lockHideTimer.current === undefined) return
+    window.clearTimeout(lockHideTimer.current)
+    lockHideTimer.current = undefined
+  }, [])
+
+  const revealLockChrome = useCallback(() => {
+    clearLockHideTimer()
+    setLockChromeVisible(true)
+  }, [clearLockHideTimer])
+
+  const scheduleHideLockChrome = useCallback(() => {
+    clearLockHideTimer()
+    if (!lockedRef.current) return
+    lockHideTimer.current = window.setTimeout(() => {
+      lockHideTimer.current = undefined
+      if (!hoveringRef.current && lockedRef.current) setLockChromeVisible(false)
+    }, LOCK_CHROME_HIDE_MS)
+  }, [clearLockHideTimer])
 
   const applyEvent = useCallback((event: MuyuEvent) => {
     const result = stepMuyu(machineRef.current, event, tunablesRef.current)
@@ -166,11 +193,13 @@ export function MuyuWidget({
 
   useEffect(() => {
     reducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    scheduleHideLockChrome()
     return () => {
       for (const timer of floatTimers.current) window.clearTimeout(timer)
       if (popTimer.current !== undefined) window.clearTimeout(popTimer.current)
+      clearLockHideTimer()
     }
-  }, [])
+  }, [scheduleHideLockChrome, clearLockHideTimer])
 
   useEffect(() => {
     const next = stepMuyu(initialMuyuState(), { type: 'sessionChange' }, tunablesRef.current).state
@@ -189,6 +218,14 @@ export function MuyuWidget({
   useEffect(() => {
     if (!tunables.showLockButton) setLocked(true)
   }, [tunables.showLockButton])
+
+  useEffect(() => {
+    if (!locked) {
+      revealLockChrome()
+      return
+    }
+    if (!hoveringRef.current) scheduleHideLockChrome()
+  }, [locked, revealLockChrome, scheduleHideLockChrome])
 
   // Drop live follow once prefs catch up, so we do not flash back to composer CSS.
   useEffect(() => {
@@ -360,7 +397,16 @@ export function MuyuWidget({
       className={css.root}
       data-pose={machine.pose}
       data-unlocked={locked ? undefined : ''}
+      data-lock-chrome={tunables.showLockButton && lockChromeVisible ? '' : undefined}
       style={rootStyle}
+      onPointerEnter={() => {
+        hoveringRef.current = true
+        revealLockChrome()
+      }}
+      onPointerLeave={() => {
+        hoveringRef.current = false
+        scheduleHideLockChrome()
+      }}
       onPointerDown={onRootPointerDown}
       onPointerMove={onRootPointerMove}
       onPointerUp={endDrag}
@@ -372,6 +418,8 @@ export function MuyuWidget({
             type="button"
             className={css.lock}
             data-muyu-lock=""
+            tabIndex={lockChromeVisible ? 0 : -1}
+            aria-hidden={!lockChromeVisible}
             aria-pressed={!locked}
             aria-label={locked ? t('lock.aria') : t('unlock.aria')}
             onPointerDown={(event) => {
