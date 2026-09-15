@@ -5,17 +5,22 @@ import { describe, expect, it } from 'vitest'
 import {
   applyPointerDelta,
   clampPosition,
+  composerPosition,
   DRAG_COMMIT_PX,
   isCustomPosition,
+  pickAnchoredPosition,
+  positionStyle,
   roundPosition,
   shouldCommitDrag,
+  transformOriginFor,
 } from '../src/client/position.ts'
 
 describe('isCustomPosition', () => {
-  it('is false only when both axes are zero', () => {
-    expect(isCustomPosition({ rightPx: 0, bottomPx: 0 })).toBe(false)
-    expect(isCustomPosition({ rightPx: 1, bottomPx: 0 })).toBe(true)
-    expect(isCustomPosition({ rightPx: 0, bottomPx: -4 })).toBe(true)
+  it('is false only for the composer default (right/bottom 0)', () => {
+    expect(isCustomPosition(composerPosition())).toBe(false)
+    expect(isCustomPosition({ xEdge: 'right', xPx: 1, yEdge: 'bottom', yPx: 0 })).toBe(true)
+    expect(isCustomPosition({ xEdge: 'left', xPx: 0, yEdge: 'bottom', yPx: 100 })).toBe(true)
+    expect(isCustomPosition({ xEdge: 'right', xPx: 0, yEdge: 'top', yPx: 0 })).toBe(true)
   })
 })
 
@@ -29,21 +34,34 @@ describe('shouldCommitDrag', () => {
 })
 
 describe('roundPosition', () => {
-  it('rounds each axis to the nearest integer', () => {
-    expect(roundPosition({ rightPx: 4.4, bottomPx: 167.6 }))
-      .toEqual({ rightPx: 4, bottomPx: 168 })
+  it('rounds each axis offset to the nearest integer', () => {
+    expect(roundPosition({ xEdge: 'right', xPx: 4.4, yEdge: 'bottom', yPx: 167.6 }))
+      .toEqual({ xEdge: 'right', xPx: 4, yEdge: 'bottom', yPx: 168 })
   })
 })
 
 describe('applyPointerDelta', () => {
   it('decreases right when dragging right, increases bottom when dragging up', () => {
-    expect(applyPointerDelta({ rightPx: 40, bottomPx: 80 }, 10, -20))
-      .toEqual({ rightPx: 30, bottomPx: 100 })
+    expect(applyPointerDelta({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: 80 }, 10, -20))
+      .toEqual({ xEdge: 'right', xPx: 30, yEdge: 'bottom', yPx: 100 })
   })
 
-  it('increases right when dragging left, decreases bottom when dragging down', () => {
-    expect(applyPointerDelta({ rightPx: 40, bottomPx: 80 }, -5, 15))
-      .toEqual({ rightPx: 45, bottomPx: 65 })
+  it('increases left when dragging right, increases top when dragging down', () => {
+    expect(applyPointerDelta({ xEdge: 'left', xPx: 40, yEdge: 'top', yPx: 80 }, 10, 15))
+      .toEqual({ xEdge: 'left', xPx: 50, yEdge: 'top', yPx: 95 })
+  })
+})
+
+describe('pickAnchoredPosition', () => {
+  it('anchors to the nearer horizontal and vertical edges', () => {
+    // rect near top-left of a 1000x800 viewport
+    expect(pickAnchoredPosition({ left: 40, right: 240, top: 60, bottom: 220 }, 1000, 800))
+      .toEqual({ xEdge: 'left', xPx: 40, yEdge: 'top', yPx: 60 })
+  })
+
+  it('anchors to right/bottom when closer to those edges', () => {
+    expect(pickAnchoredPosition({ left: 760, right: 960, top: 600, bottom: 760 }, 1000, 800))
+      .toEqual({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: 40 })
   })
 })
 
@@ -56,25 +74,70 @@ describe('clampPosition', () => {
     minVisiblePx: 24,
   }
 
-  it('leaves an in-range position unchanged', () => {
-    expect(clampPosition({ rightPx: 40, bottomPx: 80 }, viewport))
-      .toEqual({ rightPx: 40, bottomPx: 80 })
+  it('leaves an in-range right/bottom position unchanged', () => {
+    expect(clampPosition({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: 80 }, viewport))
+      .toEqual({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: 80 })
+  })
+
+  it('clamps a left-anchored position without converting it to right', () => {
+    expect(clampPosition({ xEdge: 'left', xPx: -500, yEdge: 'bottom', yPx: 80 }, viewport))
+      .toEqual({ xEdge: 'left', xPx: -(200 - 24), yEdge: 'bottom', yPx: 80 })
+  })
+
+  it('keeps left anchor when the viewport shrinks (screen zoom / resize)', () => {
+    const leftSide = { xEdge: 'left' as const, xPx: 40, yEdge: 'bottom' as const, yPx: 80 }
+    const shrunk = { ...viewport, viewportW: 500, viewportH: 400 }
+    expect(clampPosition(leftSide, shrunk))
+      .toEqual({ xEdge: 'left', xPx: 40, yEdge: 'bottom', yPx: 80 })
+  })
+
+  it('keeps an intentional right anchor when the viewport shrinks past center', () => {
+    // rightPx=800 on a 2000-wide view sits left of center; after shrink it is
+    // nearer the left, but clamp must not rewrite the edge (widget layer owns that).
+    const intentionalRight = { xEdge: 'right' as const, xPx: 800, yEdge: 'bottom' as const, yPx: 80 }
+    const shrunk = { ...viewport, viewportW: 1400, viewportH: 800 }
+    expect(clampPosition(intentionalRight, shrunk))
+      .toEqual({ xEdge: 'right', xPx: 800, yEdge: 'bottom', yPx: 80 })
   })
 
   it('pulls a far-right position back so 24px stay visible', () => {
-    expect(clampPosition({ rightPx: 2000, bottomPx: 80 }, viewport))
-      .toEqual({ rightPx: 1000 - 24, bottomPx: 80 })
+    expect(clampPosition({ xEdge: 'right', xPx: 2000, yEdge: 'bottom', yPx: 80 }, viewport))
+      .toEqual({ xEdge: 'right', xPx: 1000 - 24, yEdge: 'bottom', yPx: 80 })
   })
 
   it('pulls a negative right back so 24px stay on the right edge', () => {
-    expect(clampPosition({ rightPx: -500, bottomPx: 80 }, viewport))
-      .toEqual({ rightPx: -(200 - 24), bottomPx: 80 })
+    expect(clampPosition({ xEdge: 'right', xPx: -500, yEdge: 'bottom', yPx: 80 }, viewport))
+      .toEqual({ xEdge: 'right', xPx: -(200 - 24), yEdge: 'bottom', yPx: 80 })
   })
 
   it('clamps bottom the same way against the viewport height', () => {
-    expect(clampPosition({ rightPx: 40, bottomPx: 5000 }, viewport))
-      .toEqual({ rightPx: 40, bottomPx: 800 - 24 })
-    expect(clampPosition({ rightPx: 40, bottomPx: -500 }, viewport))
-      .toEqual({ rightPx: 40, bottomPx: -(160 - 24) })
+    expect(clampPosition({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: 5000 }, viewport))
+      .toEqual({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: 800 - 24 })
+    expect(clampPosition({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: -500 }, viewport))
+      .toEqual({ xEdge: 'right', xPx: 40, yEdge: 'bottom', yPx: -(160 - 24) })
+  })
+})
+
+describe('positionStyle + transformOriginFor', () => {
+  it('emits left/top CSS for a left/top anchor and matching transform origin', () => {
+    const pos = { xEdge: 'left' as const, xPx: 40, yEdge: 'top' as const, yPx: 60 }
+    expect(positionStyle(pos)).toEqual({
+      left: '40px',
+      right: 'auto',
+      top: '60px',
+      bottom: 'auto',
+    })
+    expect(transformOriginFor(pos)).toBe('top left')
+  })
+
+  it('emits right/bottom CSS for a right/bottom anchor', () => {
+    const pos = { xEdge: 'right' as const, xPx: 12, yEdge: 'bottom' as const, yPx: 80 }
+    expect(positionStyle(pos)).toEqual({
+      left: 'auto',
+      right: '12px',
+      top: 'auto',
+      bottom: '80px',
+    })
+    expect(transformOriginFor(pos)).toBe('bottom right')
   })
 })

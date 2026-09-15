@@ -36,15 +36,28 @@ export interface MuyuPrefs {
   /** Bumped when a local or library pack is saved or cleared so the overlay reloads. */
   artPackRev?: number
   /**
-   * Distance from the viewport right edge in px when customized.
-   * Both axes 0 means default composer-anchored placement.
+   * Legacy right-edge distance. Prefer {@link positionXPx} + {@link positionXEdge}.
+   * Still read when the newer fields are absent.
    */
   positionRightPx?: number
   /**
-   * Distance from the viewport bottom edge in px when customized.
-   * Both axes 0 means default composer-anchored placement.
+   * Legacy bottom-edge distance. Prefer {@link positionYPx} + {@link positionYEdge}.
+   * Still read when the newer fields are absent.
    */
   positionBottomPx?: number
+  /** Distance from {@link positionXEdge} in px when customized. */
+  positionXPx?: number
+  /** Distance from {@link positionYEdge} in px when customized. */
+  positionYPx?: number
+  /** Horizontal edge the X offset is measured from. */
+  positionXEdge?: 'left' | 'right'
+  /** Vertical edge the Y offset is measured from. */
+  positionYEdge?: 'top' | 'bottom'
+  /**
+   * When true, the overlay should pick nearer edges once from layout
+   * (legacy right/bottom-only prefs). Cleared after that write.
+   */
+  positionEdgesProvisional?: boolean
   /** When false, the overlay lock chip is hidden; position stays locked. */
   showLockButton?: boolean
   /** Overlay display scale; 1 is the default sprite size. */
@@ -62,8 +75,12 @@ export type ResolvedMuyuPrefs = {
   readonly artBaseUrl: string
   readonly artPackId: string
   readonly artPackRev: number
-  readonly positionRightPx: number
-  readonly positionBottomPx: number
+  readonly positionXPx: number
+  readonly positionYPx: number
+  readonly positionXEdge: 'left' | 'right'
+  readonly positionYEdge: 'top' | 'bottom'
+  /** See {@link MuyuPrefs.positionEdgesProvisional}. */
+  readonly positionEdgesProvisional: boolean
   readonly showLockButton: boolean
   readonly scale: number
 }
@@ -154,12 +171,34 @@ export const Prefs: z<MuyuPrefs> = z.object({
     .number()
     .step(1)
     .default(0)
-    .description('Custom viewport-right distance in px; 0 with bottom 0 keeps composer anchor'),
+    .description('Legacy right-edge distance; used only when positionXPx is unset'),
   positionBottomPx: z
     .number()
     .step(1)
     .default(0)
-    .description('Custom viewport-bottom distance in px; 0 with right 0 keeps composer anchor'),
+    .description('Legacy bottom-edge distance; used only when positionYPx is unset'),
+  positionXPx: z
+    .number()
+    .step(1)
+    .default(0)
+    .description('Custom distance from positionXEdge in px'),
+  positionYPx: z
+    .number()
+    .step(1)
+    .default(0)
+    .description('Custom distance from positionYEdge in px'),
+  positionXEdge: z
+    .union(['left', 'right'])
+    .default('right')
+    .description('Horizontal edge for custom placement'),
+  positionYEdge: z
+    .union(['top', 'bottom'])
+    .default('bottom')
+    .description('Vertical edge for custom placement'),
+  positionEdgesProvisional: z
+    .boolean()
+    .default(false)
+    .description('Pick nearer edges once from layout for legacy right/bottom prefs'),
   showLockButton: z
     .boolean()
     .default(true)
@@ -187,12 +226,40 @@ export const Config = z.object({})
 export function resolveMuyuPrefs(input: MuyuPrefs = {}): ResolvedMuyuPrefs {
   const artSource = input.artSource
     ?? (typeof input.artBaseUrl === 'string' && input.artBaseUrl.trim() !== '' ? 'url' : undefined)
-  const raw = Prefs(artSource === undefined ? input : { ...input, artSource }) as ResolvedMuyuPrefs
-  // Legacy `zip` + pack id → library; bare `zip` still loads the migrated slot via library list.
-  if (raw.artSource === 'zip' && raw.artPackId.trim() !== '') {
-    return { ...raw, artSource: 'library' }
+  // Edges/offsets written by the new model win. Legacy right/bottom apply only
+  // when those keys were never present (undefined), not when they are 0.
+  const hasExplicitEdges = input.positionXEdge !== undefined || input.positionYEdge !== undefined
+  const hasNewX = input.positionXPx !== undefined
+  const hasNewY = input.positionYPx !== undefined
+  const legacyX = input.positionRightPx
+  const legacyY = input.positionBottomPx
+  const legacyCustom = (legacyX !== undefined && legacyX !== 0)
+    || (legacyY !== undefined && legacyY !== 0)
+  // Old blobs had offsets but no edge fields — pick nearer edges once from layout.
+  const provisional = input.positionEdgesProvisional === true
+    || (!hasExplicitEdges && !hasNewX && !hasNewY && legacyCustom)
+  const migrated: MuyuPrefs = {
+    ...input,
+    positionXPx: hasNewX ? input.positionXPx : legacyX,
+    positionYPx: hasNewY ? input.positionYPx : legacyY,
+    positionXEdge: input.positionXEdge ?? 'right',
+    positionYEdge: input.positionYEdge ?? 'bottom',
+    positionEdgesProvisional: provisional,
   }
-  return raw
+  const raw = Prefs(artSource === undefined ? migrated : { ...migrated, artSource }) as ResolvedMuyuPrefs & {
+    positionRightPx?: number
+    positionBottomPx?: number
+  }
+  const {
+    positionRightPx: _legacyRight,
+    positionBottomPx: _legacyBottom,
+    ...prefs
+  } = raw
+  // Legacy `zip` + pack id → library; bare `zip` still loads the migrated slot via library list.
+  if (prefs.artSource === 'zip' && prefs.artPackId.trim() !== '') {
+    return { ...prefs, artSource: 'library' }
+  }
+  return prefs
 }
 
 /**
@@ -213,6 +280,11 @@ export function resolveMuyuConfig(input: MuyuConfig = {}): ResolvedMuyuConfig {
     artPackRev: input.artPackRev,
     positionRightPx: input.positionRightPx,
     positionBottomPx: input.positionBottomPx,
+    positionXPx: input.positionXPx,
+    positionYPx: input.positionYPx,
+    positionXEdge: input.positionXEdge,
+    positionYEdge: input.positionYEdge,
+    positionEdgesProvisional: input.positionEdgesProvisional,
     showLockButton: input.showLockButton,
     scale: input.scale,
   })

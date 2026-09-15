@@ -19,11 +19,59 @@ describe('resolveMuyuPrefs', () => {
       artBaseUrl: '',
       artPackId: '',
       artPackRev: 0,
-      positionRightPx: 0,
-      positionBottomPx: 0,
+      positionXPx: 0,
+      positionYPx: 0,
+      positionXEdge: 'right',
+      positionYEdge: 'bottom',
+      positionEdgesProvisional: false,
       showLockButton: true,
       scale: 1,
     })
+  })
+
+  it('migrates legacy right/bottom offsets into X/Y edge distances', () => {
+    expect(resolveMuyuPrefs({ positionRightPx: 120, positionBottomPx: 80 })).toMatchObject({
+      positionXPx: 120,
+      positionYPx: 80,
+      positionXEdge: 'right',
+      positionYEdge: 'bottom',
+      positionEdgesProvisional: true,
+    })
+  })
+
+  it('prefers explicit new-model offsets over leftover legacy keys', () => {
+    expect(resolveMuyuPrefs({
+      positionRightPx: 800,
+      positionXPx: 0,
+      positionXEdge: 'left',
+      positionYEdge: 'bottom',
+    })).toMatchObject({
+      positionXPx: 0,
+      positionXEdge: 'left',
+      positionEdgesProvisional: false,
+    })
+  })
+
+  it('falls back to legacy offsets only when new offset keys are absent', () => {
+    expect(resolveMuyuPrefs({ positionRightPx: 800 })).toMatchObject({
+      positionXPx: 800,
+      positionEdgesProvisional: true,
+    })
+  })
+
+  it('strips legacy right/bottom keys from the resolved prefs object', () => {
+    const resolved = resolveMuyuPrefs({ positionRightPx: 120, positionBottomPx: 80 }) as Record<string, unknown>
+    expect(resolved).not.toHaveProperty('positionRightPx')
+    expect(resolved).not.toHaveProperty('positionBottomPx')
+  })
+
+  it('keeps explicit edges non-provisional so resize must not re-pick anchors', () => {
+    expect(resolveMuyuPrefs({
+      positionXPx: 800,
+      positionYPx: 80,
+      positionXEdge: 'right',
+      positionYEdge: 'bottom',
+    }).positionEdgesProvisional).toBe(false)
   })
 
   it('treats a persisted custom URL as the remote url source', () => {

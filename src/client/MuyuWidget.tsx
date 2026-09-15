@@ -14,9 +14,13 @@ import type { MuyuKey } from './locales.ts'
 import {
   applyPointerDelta,
   clampPosition,
+  composerPosition,
   isCustomPosition,
+  pickAnchoredPosition,
+  positionStyle,
   roundPosition,
   shouldCommitDrag,
+  transformOriginFor,
   type MuyuPosition,
 } from './position.ts'
 import { clampScale, nudgeScale, SCALE_MAX, SCALE_MIN, SCALE_STEP } from './scale.ts'
@@ -64,18 +68,40 @@ type DragSession = {
 }
 
 /**
- * Convert a layout rect into viewport-edge distances.
+ * Convert a layout/visual rect into nearer-edge distances.
  * @param rect - element bounding box in viewport coordinates.
+ * @param edges - when set, keep these edges (drag follow); otherwise pick nearer.
  */
-function positionFromRect(rect: DOMRectReadOnly): MuyuPosition {
-  return {
-    rightPx: window.innerWidth - rect.right,
-    bottomPx: window.innerHeight - rect.bottom,
+function positionFromRect(
+  rect: DOMRectReadOnly,
+  edges?: Pick<MuyuPosition, 'xEdge' | 'yEdge'>,
+): MuyuPosition {
+  if (edges === undefined) {
+    return pickAnchoredPosition(rect, window.innerWidth, window.innerHeight)
   }
+  return roundPosition({
+    xEdge: edges.xEdge,
+    xPx: edges.xEdge === 'left' ? rect.left : window.innerWidth - rect.right,
+    yEdge: edges.yEdge,
+    yPx: edges.yEdge === 'top' ? rect.top : window.innerHeight - rect.bottom,
+  })
 }
 
 function samePosition(a: MuyuPosition, b: MuyuPosition): boolean {
-  return a.rightPx === b.rightPx && a.bottomPx === b.bottomPx
+  return a.xEdge === b.xEdge
+    && a.yEdge === b.yEdge
+    && a.xPx === b.xPx
+    && a.yPx === b.yPx
+}
+
+function prefsFromPosition(pos: MuyuPosition) {
+  return {
+    positionXEdge: pos.xEdge,
+    positionYEdge: pos.yEdge,
+    positionXPx: pos.xPx,
+    positionYPx: pos.yPx,
+    positionEdgesProvisional: false,
+  }
 }
 
 /**
@@ -112,10 +138,12 @@ export function MuyuWidget({
   })
   const storedPos = useMemo(
     (): MuyuPosition => ({
-      rightPx: tunables.positionRightPx,
-      bottomPx: tunables.positionBottomPx,
+      xEdge: tunables.positionXEdge,
+      yEdge: tunables.positionYEdge,
+      xPx: tunables.positionXPx,
+      yPx: tunables.positionYPx,
     }),
-    [tunables.positionRightPx, tunables.positionBottomPx],
+    [tunables.positionXEdge, tunables.positionYEdge, tunables.positionXPx, tunables.positionYPx],
   )
   const customPlacement = isCustomPosition(storedPos)
   const [locked, setLocked] = useState(true)
@@ -245,10 +273,7 @@ export function MuyuWidget({
     })
     const prev = storedPosRef.current
     if (samePosition(next, prev)) return next
-    actionsRef.current.setPrefs({
-      positionRightPx: next.rightPx,
-      positionBottomPx: next.bottomPx,
-    })
+    actionsRef.current.setPrefs(prefsFromPosition(next))
     return next
   }, [])
 
@@ -272,14 +297,19 @@ export function MuyuWidget({
         })
         // Compare against rounded absolute so subpixels alone do not pin placement.
         if (!samePosition(clamped, roundPosition(absolute))) {
-          actionsRef.current.setPrefs({
-            positionRightPx: clamped.rightPx,
-            positionBottomPx: clamped.bottomPx,
-          })
+          actionsRef.current.setPrefs(prefsFromPosition(clamped))
         }
         return
       }
-      persistClamped(storedPosRef.current, rect.width, rect.height)
+      // Legacy right/bottom-only prefs: pick nearer edges once, then clear the flag.
+      // Do not re-run on later resizes — that would flip intentional right anchors.
+      const stored = storedPosRef.current
+      if (tunablesRef.current.positionEdgesProvisional) {
+        const nearer = pickAnchoredPosition(rect, window.innerWidth, window.innerHeight)
+        persistClamped(nearer, rect.width, rect.height)
+        return
+      }
+      persistClamped(stored, rect.width, rect.height)
     }
 
     const frame = window.requestAnimationFrame(ensureVisible)
@@ -312,12 +342,11 @@ export function MuyuWidget({
 
   const displayPos = livePos ?? (customPlacement ? storedPos : null)
   const scale = clampScale(tunables.scale)
+  const anchor = displayPos ?? composerPosition()
   const rootStyle: CSSProperties = {
-    transformOrigin: 'bottom right',
+    transformOrigin: transformOriginFor(anchor),
     ...(scale !== 1 ? { transform: `scale(${scale})` } : {}),
-    ...(displayPos === null
-      ? {}
-      : { right: `${displayPos.rightPx}px`, bottom: `${displayPos.bottomPx}px` }),
+    ...(displayPos === null ? {} : positionStyle(displayPos)),
   }
 
   const setScaleBy = (delta: number) => {
@@ -394,7 +423,11 @@ export function MuyuWidget({
     const el = rootRef.current
     if (el === null) return
     event.preventDefault()
-    const start = positionFromRect(el.getBoundingClientRect())
+    // Keep current edges while dragging so the widget does not flip anchors mid-gesture.
+    const edges = isCustomPosition(storedPosRef.current)
+      ? storedPosRef.current
+      : undefined
+    const start = positionFromRect(el.getBoundingClientRect(), edges)
     dragRef.current = {
       pointerId: event.pointerId,
       lastX: event.clientX,
