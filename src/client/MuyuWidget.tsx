@@ -24,6 +24,7 @@ import {
   type MuyuPosition,
 } from './position.ts'
 import { clampScale, nudgeScale, SCALE_MAX, SCALE_MIN, SCALE_STEP } from './scale.ts'
+import { currentSessionId, currentSessionRunning } from './session-list.ts'
 import css from './MuyuWidget.module.css'
 
 const POSE_ALT: Readonly<Record<MuyuPose, MuyuKey>> = {
@@ -114,11 +115,8 @@ export function MuyuWidget({
   actions,
   t,
 }: MuyuWidgetProps) {
-  const sessionId = useSessions(s => s.current)
-  const running = useSessions((s) => {
-    const id = s.current
-    return id !== undefined && s.byId[id]?.running === true
-  })
+  const sessionId = useSessions(currentSessionId)
+  const running = useSessions(currentSessionRunning)
   const prefs = useStore(s => s.prefs)
   const prefsTunables = useMemo(() => resolveMuyuConfig(prefs ?? {}), [prefs])
   const art = useMuyuArt(prefsTunables)

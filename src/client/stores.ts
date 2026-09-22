@@ -1,8 +1,8 @@
 /**
- * Per-session merit counters and user prefs. Exclusive store: create the
- * handle once in `apply` and pass it to both slot entries; module-level
- * handles are forbidden. Overlay scope is root, so one localStorage key
- * holds prefs, merit, and LRU timestamps. Art-pack blobs live in IndexedDB.
+ * Per-session merit counters and user prefs. Shared handle: create it once in
+ * `apply` and mount it under both slot entries; module-level handles are
+ * forbidden. Overlay scope is root, so one localStorage key holds prefs,
+ * merit, and LRU timestamps. Art-pack blobs live in IndexedDB.
  */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import { resolveMuyuPrefs, type MuyuPrefs } from '../config.ts'
@@ -23,7 +23,7 @@ type MuyuStoreActions = {
 }
 
 /**
- * Create the exclusive merit-and-prefs store handle.
+ * Create the merit-and-prefs store handle, mounted shared across both entries.
  * @returns the store handle (spec + identity + factory).
  */
 export function createMuyuStore(): EngineStoreHandle<MuyuStoreState, MuyuStoreActions> {

@@ -1,6 +1,6 @@
 /**
  * Settings section: feel prefs, local working pack, and remote URL/zip.
- * Writes the exclusive store; does not touch Host yaml or settingsScope.
+ * Writes the client store; does not touch Host yaml or settingsScope.
  */
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'

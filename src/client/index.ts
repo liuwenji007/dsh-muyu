@@ -1,6 +1,6 @@
 /**
  * Wooden-fish overlay, browser half: one `shell.overlay` list entry and a
- * `settings.section` page. Prefs persist in the exclusive store, not Host yaml.
+ * `settings.section` page. Prefs persist in the client store, not Host yaml.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
@@ -53,8 +53,8 @@ function sectionLabel(ctx: ClientContext): string {
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  const handle = createMuyuStore()
-  const store = () => handle
+  // One handle for both entries, so the overlay and the settings page share merit and prefs.
+  const store = createMuyuStore()
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-muyu: dictionaries')
 

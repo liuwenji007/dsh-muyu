@@ -41,8 +41,11 @@ Upgrade in pairs — the market will not block a mismatched bump:
 | new | ≤ 0.1.4 | `dsh-client-runtime/client` missed the module table |
 | old (only `dsh-client-runtime/client`) | ≤ 0.1.4 | OK |
 | old | ≥ 0.1.5 | `dsh-client-store` missed the module table |
+| **dsh ≥ 0.1.7** | **≤ 0.1.8** | Knocks, but records no merit and floats no +1 |
 
 **Do not bump only the fish to 0.1.5 on an old dsh** — upgrade the host first, then the plugin; or pin `dsh-muyu@0.1.4` until you can.
+
+**≤ 0.1.8 on dsh ≥ 0.1.7 records no merit and floats no +1.** From 0.1.7 the open session is no longer `current` on the list; the main view holds that row (`retainedBy.mainView`). **0.1.9 reads that hold** (older hosts still use `current`). Stored merit is left as it is.
 
 Check the host first:
 
@@ -95,6 +98,7 @@ dsh --profile web
 | If | Then |
 | --- | --- |
 | `dsh-client-runtime/client` or `dsh-client-store` missed the module table | Host/plugin mismatch: new host needs **≥ 0.1.5**; on an old host upgrade **dsh ≥ 0.1.0-rc.8** then the plugin (or pin `dsh-muyu@0.1.4`); Market update or `add dsh-muyu@…`, restart Web |
+| Knocking records no merit and floats no +1 (dsh ≥ 0.1.7) | The plugin is **≤ 0.1.8**. Upgrade to **≥ 0.1.9** and restart Web |
 | two overlays | The Web bundle may already ship `ui-muyu`. In the profile `cordis.patch.yml`, set `- id: ui-muyu` / `disabled: true` |
 | git install hits `allowBuilds` | See “From GitHub” above |
 | prefer a tarball | `pnpm pack`, then `dsh plugin add ./dsh-muyu-0.1.0.tgz` |
