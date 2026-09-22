@@ -1,6 +1,6 @@
 /**
  * Pose machine: auto-knock delay/interval, bump recovery, combo interrupt,
- * session reset, and merit isolation in the exclusive store.
+ * session reset, and merit isolation in the client store.
  */
 import { describe, expect, it } from 'vitest'
 import { resolveMuyuConfig } from '../src/config.ts'

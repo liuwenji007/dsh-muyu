@@ -42,8 +42,11 @@ Harness 还是 preview 版本，最近算力不够，感觉api也有点降速，
 | 新 | ≤ 0.1.4 | 报 `dsh-client-runtime/client` missed the module table |
 | 旧（只有 `dsh-client-runtime/client`） | ≤ 0.1.4 | 正常 |
 | 旧 | ≥ 0.1.5 | 报 `dsh-client-store` missed the module table |
+| **dsh ≥ 0.1.7** | **0.1.8** | 木鱼浮层与设置页不挂载；控制台报 `exclusive store for factory ... cannot declare persistence` |
 
 **老 dsh 上别只升木鱼到 0.1.5**——先升宿主，再升插件；暂时不升 dsh 就钉住 `dsh-muyu@0.1.4`。
+
+**0.1.8 配 dsh ≥ 0.1.7 是坏的**（敲木鱼不涨功德、也不飘 +1）：宿主在 0.1.7 起不再允许「独立工厂」形式的 store 声明持久化键，木鱼的槽位因此在渲染时抛装配错误。**0.1.9 起改用共享 handle 注册**，新老宿主都能挂载，已存的功德与设置不受影响。
 
 先确认宿主版本：
 
@@ -96,6 +99,7 @@ dsh --profile web
 | 碰到 | 怎么处理 |
 | --- | --- |
 | `dsh-client-runtime/client` 或 `dsh-client-store` missed the module table | 宿主与插件版本错配：新宿主配 **≥ 0.1.5**，旧宿主先升 **dsh ≥ 0.1.0-rc.8** 再升插件（或旧宿主钉 `dsh-muyu@0.1.4`）；市场更新或 `add dsh-muyu@…` 后重启 Web |
+| 敲木鱼不涨功德、也不飘 +1（dsh ≥ 0.1.7） | 插件是 **0.1.8**。控制台会有 `exclusive store for factory ... cannot declare persistence`。升级到 **≥ 0.1.9** 并重启 Web |
 | 右下角出现两只 | 组合包可能已有内置 `ui-muyu`。在 profile 的 `cordis.patch.yml` 里加 `- id: ui-muyu` / `disabled: true` |
 | git 安装卡在 `allowBuilds` | 见上文「从 GitHub 安装」 |
 | 也可用 `.tgz` | `pnpm pack` 后：`dsh plugin add ./dsh-muyu-0.1.0.tgz` |
