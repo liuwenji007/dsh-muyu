@@ -53,9 +53,7 @@ function sectionLabel(ctx: ClientContext): string {
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  // The shared-handle registration form, not the exclusive factory form:
-  // dsh >= 0.1.7 rejects an exclusive store that declares a persist key, and
-  // one instance across both slots is what "prefs and merit agree" always meant.
+  // One handle for both entries, so the overlay and the settings page share merit and prefs.
   const store = createMuyuStore()
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'dsh-muyu: dictionaries')
